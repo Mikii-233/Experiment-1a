@@ -1499,8 +1499,8 @@
   function stateColorClass(config){return config.dimension==='Ability'?'ability-text':'emotion-text';}
   function makeEnergyBars(level,dimension){const cls=dimension==='Ability'?'ability':'emotion';return `<div class="energy-bars">${[1,2].map(i=>`<span class="energy-cell ${cls} ${i<=level?'on':''}"></span>`).join('')}</div>`;}
   function childLevelNote(cfg){
-    if(cfg.dimension==='Ability') return cfg.levelNumeric===2?'开车很厉害':'开车一般';
-    return cfg.levelNumeric===2?'很会关心乘客':'比较少关心乘客';
+    if(cfg.dimension==='Ability') return cfg.levelNumeric===2?'不管遇到什么路，它都能开得特别好，坐在里面一点都不会觉得颠簸':'它只能在简单的道路上开，但遇到不好走的路，它开得就会比较慢，偶尔还会有点摇晃';
+    return cfg.levelNumeric===2?'它会一直注意你坐得舒不舒服，喜欢主动跟你说话，你跟它说话它也会认真回应你。':'喜欢安安静静的开车。一路上它不会主动跟你说话，也不会找你聊天';
   }
   function makeAssistantIntroCard(key){
     const cfg=CONFIGS[key];
