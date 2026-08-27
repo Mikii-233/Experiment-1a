@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
-  <title>实验1a｜机器人驾车游戏（儿童版）</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>实验1a｜机器人驾车游戏（儿童版 v2）</title>
 
   <!-- 与成人1a / 实验3a保持相同的本地 jsPsych 目录结构 -->
   <script src="../jspsych/jspsych.js"></script>
@@ -978,7 +981,7 @@
 
 <script>
   /* =========================================================
-     实验1a 儿童版｜精简数据导出 + 无限语音重复 + UTF-8 BOM
+     实验1a 儿童版 v2｜四助手说明更新 + 精简数据导出 + 无限语音重复 + UTF-8 BOM
      ---------------------------------------------------------
      核心框架：jsPsych
      推荐设备：平板横屏浏览器
@@ -1499,8 +1502,12 @@
   function stateColorClass(config){return config.dimension==='Ability'?'ability-text':'emotion-text';}
   function makeEnergyBars(level,dimension){const cls=dimension==='Ability'?'ability':'emotion';return `<div class="energy-bars">${[1,2].map(i=>`<span class="energy-cell ${cls} ${i<=level?'on':''}"></span>`).join('')}</div>`;}
   function childLevelNote(cfg){
-    if(cfg.dimension==='Ability') return cfg.levelNumeric===2?'不管遇到什么路，它都能开得特别好，坐在里面一点都不会觉得颠簸':'它只能在简单的道路上开，但遇到不好走的路，它开得就会比较慢，偶尔还会有点摇晃';
-    return cfg.levelNumeric===2?'它会一直注意你坐得舒不舒服，喜欢主动跟你说话，你跟它说话它也会认真回应你。':'喜欢安安静静的开车。一路上它不会主动跟你说话，也不会找你聊天';
+    if(cfg.dimension==='Ability') return cfg.levelNumeric===2
+      ? '不管遇到什么路，它都能开得特别好，坐在里面一点都不会觉得颠簸。'
+      : '它只能在简单的道路上开，但遇到不好走的路，它开得就会比较慢，偶尔还会有点摇晃。';
+    return cfg.levelNumeric===2
+      ? '它会一直注意你坐得舒不舒服，喜欢主动跟你说话，你跟它说话它也会认真回应你。'
+      : '喜欢安安静静的开车。一路上它不会主动跟你说话，也不会找你聊天。';
   }
   function makeAssistantIntroCard(key){
     const cfg=CONFIGS[key];
@@ -2124,7 +2131,7 @@
       alert('儿童版 DataPipe Experiment ID 尚未配置。');
       return;
     }
-    currentVersion=`Exp1a_Child_v1_${SEQUENCE_NAME}`;
+    currentVersion=`Exp1a_Child_v2_v1_${SEQUENCE_NAME}`;
     jsPsych.data.addProperties({Subject_ID:currentSubjectId,Session_UUID:sessionUUID,Age_Group:AGE_GROUP,Version:currentVersion,Sequence:SEQUENCE_NAME,Rating_Format:RATING_FORMAT,Browser_Context:getBrowserContext(),User_Agent:navigator.userAgent||'',Image_Format:IMAGE_FORMAT});
     experimentStartedAtMs=Date.now();document.getElementById('login-screen').classList.add('hidden');document.getElementById('jspsych-target').innerHTML='';
 
