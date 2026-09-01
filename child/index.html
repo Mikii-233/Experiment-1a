@@ -6,7 +6,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title>实验1a｜机器人驾车游戏（儿童版 v2）</title>
+  <title>实验1a｜机器人驾车游戏（儿童版 v3）</title>
 
   <!-- 与成人1a / 实验3a保持相同的本地 jsPsych 目录结构 -->
   <script src="../jspsych/jspsych.js"></script>
@@ -981,7 +981,7 @@
 
 <script>
   /* =========================================================
-     实验1a 儿童版 v2｜四助手说明更新 + 精简数据导出 + 无限语音重复 + UTF-8 BOM
+     实验1a 儿童版 v3｜研究者口述优先 + 语音可选无限重复 + 精简数据导出 + UTF-8 BOM
      ---------------------------------------------------------
      核心框架：jsPsych
      推荐设备：平板横屏浏览器
@@ -1540,9 +1540,9 @@
         <div class="assistant-prompt-wrap">
           <div style="min-width:0;flex:1;">
             <div class="speech-bubble"><span class="prompt-inline-label">机器人说：</span>${t.manipulationText}</div>
-            <div id="audio-status" class="audio-status">请先听一听机器人司机怎么说</div>
+            <div id="audio-status" class="audio-status">语音为辅助选项，不播放也可以回答</div>
           </div>
-          <button id="audio-play-btn" class="audio-btn" type="button" disabled>🔊 听机器人说</button>
+          <button id="audio-play-btn" class="audio-btn" type="button" disabled>🔊 播放语音（可选）</button>
         </div>
       </div>
     </div>`;
@@ -1715,11 +1715,11 @@
           <div class="guide-title" style="margin-bottom:12px;">先练习两次</div>
           <div class="context-box" style="margin-bottom:10px;">
             每一次先看清楚道路，再看看现在的<span class="highlight">机器人司机</span>。
-            然后点一下<span class="highlight">🔊 听机器人说</span>，认真听完它说的话。
+            研究者会把这位机器人司机说的话读给你听；如果还想再听，也可以点击<span class="highlight">🔊 播放语音</span>。
           </div>
 
           <div class="child-tip" style="margin:9px 0;">
-            听完以后，会回答两道小问题。五个圆圈表示程度从少到多：
+            听完研究者的介绍后，就可以直接回答两道小问题。五个圆圈表示程度从少到多：
             <div class="scale-demo">
               <div class="scale-demo-circles">
                 ${[0,25,50,75,100].map(f=>`<div class="scale-demo-item"><span class="circle-scale" style="--fill:${f}%"></span></div>`).join('')}
@@ -1732,7 +1732,7 @@
           </div>
 
           <div style="font-size:16px;line-height:1.6;">
-            练习没有对错。如果没有听清楚，可以点<span class="highlight">“再听一次”</span>。
+            练习没有对错。如果还想再听一遍，可以随时点击<span class="highlight">“播放语音”</span>，也可以直接回答。
           </div>
         </div>
         <div style="margin-top:13px;"><button id="practice-start" class="continue-btn">开始练习</button></div>
@@ -1760,9 +1760,9 @@
           <div style="font-size:16px;line-height:1.65;">
             ① 先看看现在的道路；<br>
             ② 看看机器人司机的绿色或橙色信息；<br>
-            ③ 点小喇叭，把机器人说的话听完；<br>
-            ④ 按照自己的感觉回答两道问题。<br>
-            ⑤ 有些道路还会再出现，但机器人司机可能不同，每次都重新看、重新听。
+            ③ 听研究者读出这位机器人司机说的话；<br>
+            ④ 不需要点击语音也可以直接按照自己的感觉回答两道问题。<br>
+            ⑤ 有些道路还会再出现，但机器人司机可能不同，每次都要重新看、重新判断。
           </div>
           <div style="margin-top:8px;color:var(--muted);font-size:14px;text-align:center;">
             没有正确答案，说出你自己的想法就可以。
@@ -1790,11 +1790,12 @@
   }
 
   // =========================================================
-  // v8 音频生命周期：
-  // 1) 每个驾驶 trial 只持有自己的一个 Audio 对象；
-  // 2) 同一 trial 内可无限次点击“重复播放”，不设置次数上限；
-  // 3) 切换到下一驾驶 trial 时，上一 trial 若仍在播放会立即停止；
-  // 4) 信任题 -> 合作题仍属于同一个 trial，因此不会中断音频。
+  // v3 音频生命周期（研究者口述优先）：
+  // 1) 评分不再依赖语音播放；场景准备好后即可作答；
+  // 2) 每个驾驶 trial 仍只持有自己的一个 Audio 对象；
+  // 3) 同一 trial 内可无限次点击“重复播放”，不设置次数上限；
+  // 4) 切换到下一驾驶 trial 时，上一 trial 若仍在播放会立即停止；
+  // 5) 信任题 -> 合作题仍属于同一个 trial，因此不会中断音频。
   // =========================================================
   let activeTrialAudioStopper=null;
 
@@ -1866,15 +1867,13 @@
           if(!audioBtn)return;
           audioBtn.disabled=!sceneReady;
           audioBtn.classList.remove('playing');
-          audioBtn.innerText=audioCompleted?'🔊 重复播放':'🔊 听机器人说';
+          audioBtn.innerText=audioCompleted?'🔊 重复播放（可选）':'🔊 播放语音（可选）';
         }
 
-        function unlockRatingsAfterFirstFullPlay(){
+        function markAudioCompleted(){
           if(audioCompleted)return;
           audioCompleted=1;
-          phaseStart=Date.now();
-          options.forEach(btn=>btn.disabled=false);
-          audioStatus.innerText='听完啦，可以回答下面的问题；需要时可以一直点击“重复播放”';
+          audioStatus.innerText='语音播放完啦；需要时可以继续点击“重复播放”';
         }
 
         function stopThisTrialAudio(markAsTrialEnd=false){
@@ -1902,7 +1901,7 @@
           closeCurrentAudioSegment();
           audioIsPlaying=false;
           audioFullPlayCount++;
-          unlockRatingsAfterFirstFullPlay();
+          markAudioCompleted();
           setAudioIdleUI();
         });
 
@@ -1921,7 +1920,7 @@
           audioBtn.classList.add('playing');
           audioBtn.innerText='正在播放…';
           audioStatus.style.color='';
-          audioStatus.innerText='请认真听完这位机器人司机说的话';
+          audioStatus.innerText='正在播放这位机器人司机说的话';
 
           const requestedAt=Date.now();
 
@@ -1952,8 +1951,11 @@
           if(sceneReady)return;
           sceneReady=true;
           totalStart=Date.now();
+          phaseStart=totalStart;
+          options.forEach(btn=>btn.disabled=false);
           if(sceneHint)sceneHint.style.display='none';
           setAudioIdleUI();
+          audioStatus.innerText='语音为辅助选项，不播放也可以回答';
         }
 
         function attachImage(){
@@ -2131,7 +2133,7 @@
       alert('儿童版 DataPipe Experiment ID 尚未配置。');
       return;
     }
-    currentVersion=`Exp1a_Child_v2_v1_${SEQUENCE_NAME}`;
+    currentVersion=`Exp1a_Child_v3_OralPrimary_${SEQUENCE_NAME}`;
     jsPsych.data.addProperties({Subject_ID:currentSubjectId,Session_UUID:sessionUUID,Age_Group:AGE_GROUP,Version:currentVersion,Sequence:SEQUENCE_NAME,Rating_Format:RATING_FORMAT,Browser_Context:getBrowserContext(),User_Agent:navigator.userAgent||'',Image_Format:IMAGE_FORMAT});
     experimentStartedAtMs=Date.now();document.getElementById('login-screen').classList.add('hidden');document.getElementById('jspsych-target').innerHTML='';
 
