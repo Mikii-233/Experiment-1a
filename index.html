@@ -636,10 +636,10 @@
 
 <script>
   /* =========================================================
-     实验1a 成人版正式版 v1
+     实验1a 成人版正式版 v1（DataPipe -> Google Drive）
      ---------------------------------------------------------
      核心框架：jsPsych
-     数据传输：DataPipe -> OSF
+     数据传输：DataPipe -> Google Drive
      风险条件：无（6张同质化定速巡航场景）
      正式顺序：全体被试共用 1 套固定伪随机序列
      正式试次：24 = 6场景 × 4助手条件
@@ -647,8 +647,8 @@
 
   const ROBOT_IMAGE = 'robot.webp';
   const PRACTICE_IMAGE = 'test.webp';
-  const DATAPIPE_EXPERIMENT_ID = '25gkEg15hFje';
-    const DATAPIPE_BASE = 'https://pipe.jspsych.org/api';
+  const DATAPIPE_EXPERIMENT_ID = '4APLg3eooyUk';
+  const DATAPIPE_BASE = 'https://pipe.jspsych.org/api';
   const SEQUENCE_NAME = 'FixedSeq_v1';
   const IMAGE_FORMAT = 'webp';
   const AGE_GROUP = 'Adult';
@@ -670,7 +670,7 @@
     : `fallback-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
   /* =========================================================
-     1. DataPipe / OSF
+     1. DataPipe / Google Drive
      ========================================================= */
   function dataPipeConfigured(){
     return DATAPIPE_EXPERIMENT_ID && !DATAPIPE_EXPERIMENT_ID.startsWith('REPLACE_');
@@ -720,7 +720,10 @@
   }
 
   async function uploadFinalDataToDataPipe(csvString){
-    if(!dataPipeConfigured()) throw new Error('DataPipe experiment ID 尚未配置。');
+    if(!dataPipeConfigured()){
+      throw new Error('DataPipe experiment ID 尚未配置。');
+    }
+
     const filename = buildUniqueDataFilename();
     const response = await fetch(`${DATAPIPE_BASE}/data/`, {
       method:'POST',
@@ -731,11 +734,25 @@
         data:csvString
       })
     });
+
     const result = await response.json().catch(()=>({}));
-    if(!response.ok || result.message !== 'Success'){
-      throw new Error(result.message || `DataPipe 数据上传失败（HTTP ${response.status}）`);
+
+    // DataPipe /api/data/ 当前成功状态：
+    // 201 = 已写入 Google Drive；
+    // 202 = DataPipe 已安全接收并进入自动重试队列。
+    // 202 不能重复提交，否则可能造成同一被试数据重复保存。
+    if(response.status !== 201 && response.status !== 202){
+      const errorCode = result.error ? ` [${result.error}]` : '';
+      const errorMessage = result.message || `DataPipe 数据上传失败（HTTP ${response.status}）`;
+      throw new Error(`${errorMessage}${errorCode}`);
     }
-    return {filename,result};
+
+    return {
+      filename,
+      result,
+      httpStatus:response.status,
+      queued:response.status === 202
+    };
   }
 
   function prepareLocalBackup(csvString){
@@ -832,11 +849,15 @@
 
       try{
         const upload = await uploadFinalDataToDataPipe(csvString);
+        const uploadStatusText = upload.queued
+          ? '数据已由 DataPipe 安全接收，并正在自动写入 Google Drive。'
+          : '数据已成功保存至 Google Drive。';
+
         document.getElementById('jspsych-target').innerHTML = `
           <div class="fullscreen-container">
             <div class="guide-box" style="text-align:center;max-width:780px;">
               <div class="guide-title" style="color:var(--green);">✓ 数据提交成功</div>
-              <p style="color:#ddd;line-height:1.8;">本次体验已全部结束，感谢您的参与！现在可以安全关闭此页面。</p>
+              <p style="color:#ddd;line-height:1.8;">${uploadStatusText}<br>本次体验已全部结束，感谢您的参与！现在可以安全关闭此页面。</p>
               <p style="color:#777;font-size:13px;">数据文件：${upload.filename}</p>
             </div>
           </div>`;
