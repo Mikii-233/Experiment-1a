@@ -493,16 +493,29 @@
       background:#20212a;
       border:1px solid #555b67;
       border-radius:11px;
-      padding:11px 15px;
+      padding:10px 15px 11px;
       box-sizing:border-box;
-      font-size:clamp(14px,1.08vw,19px);
-      line-height:1.58;
       color:#f0f0f0;
-      overflow-wrap:anywhere;
       box-shadow:0 2px 8px rgba(0,0,0,.16);
     }
-    .function-description-label { font-weight:900; color:#dce6f0; }
-    .manipulation-last-line { display:inline-block; margin-top:4px; }
+    /* “功能说明”单独作为标题，不占用三条功能解释的行内空间。 */
+    .function-description-title {
+      font-weight:900;
+      color:#dce6f0;
+      font-size:clamp(13px,1vw,17px);
+      line-height:1.25;
+      margin-bottom:7px;
+    }
+    /* 感知→预测→执行固定三行呈现，便于与左侧三行能量格一一对应。 */
+    .function-description-lines {
+      display:grid;
+      gap:5px;
+    }
+    .function-description-line {
+      font-size:clamp(13px,1.02vw,18px);
+      line-height:1.35;
+      white-space:nowrap;
+    }
 
     /* ---------- 结束 ---------- */
     .debug-data {
@@ -831,29 +844,43 @@
       .example-status-row { grid-template-columns:78px 1fr; gap:7px; }
       .example-status-name { font-size:12px; }
 
+      /* 手机正式trial：头像 + 竖向三行功能能量格在上方；功能说明独占下一行。
+         与电脑端保持同一“感知→预测→执行”阅读顺序，避免横排后视觉结构发生变化。 */
       .assistant-info-main.three-dim {
         grid-template-columns:64px minmax(0,1fr);
-        grid-template-areas:'avatar bubble' 'states states';
-        gap:6px 8px;
+        grid-template-areas:
+          'avatar states'
+          'bubble bubble';
+        gap:8px 10px;
         align-items:center;
       }
       .assistant-avatar-col { align-self:center; }
-      .assistant-info-main.three-dim .assistant-info-card .avatar-box { width:54px; height:54px; }
+      .assistant-avatar-col .avatar-box { width:56px; height:56px; }
       .status-grid {
-        grid-template-columns:repeat(3,1fr);
-        gap:5px;
-        margin-top:2px;
+        grid-template-columns:1fr;
+        gap:6px;
+        margin-top:0;
+        width:100%;
       }
       .dim-state {
-        display:flex;
-        flex-direction:column;
-        justify-content:center;
-        gap:3px;
+        display:grid;
+        grid-template-columns:72px auto;
+        justify-content:start;
+        align-items:center;
+        gap:8px;
       }
-      .dim-state-label { font-size:11.5px; text-align:center; }
-      .status-grid .energy-bars { gap:3px; justify-content:center; }
-      .status-grid .energy-cell { width:23px; height:10px; border-width:1.3px; }
-      .assistant-info-main.three-dim .assistant-prompt-wrap { align-self:center; }
+      .dim-state-label { font-size:12px; text-align:right; }
+      .status-grid .energy-bars { gap:4px; justify-content:flex-start; }
+      .status-grid .energy-cell { width:28px; height:11px; border-width:1.3px; }
+      .assistant-info-main.three-dim .assistant-prompt-wrap {
+        grid-area:bubble;
+        width:100%;
+        align-self:stretch;
+      }
+      .function-description { padding:8px 11px 9px; }
+      .function-description-title { font-size:12.5px; margin-bottom:5px; }
+      .function-description-lines { gap:4px; }
+      .function-description-line { font-size:12.5px; line-height:1.3; white-space:nowrap; }
       .assistant-zone { padding-top:5px; padding-bottom:5px; }
       .assistant-info-card { padding-bottom:7px; }
     }
@@ -1376,11 +1403,15 @@
       </div>`).join('')}</div>`;
   }
   function formatManipulationText(text){
-    const parts=String(text||'').split('；').map(s=>s.trim()).filter(Boolean);
-    if(parts.length>=3){
-      return `${parts[0]}；${parts[1]}；<br><span class="manipulation-last-line">${parts.slice(2).join('；')}</span>`;
-    }
-    return String(text||'');
+    // 固定按“感知→预测→执行”拆成三行。
+    // 去掉句末标点后统一补句号，保证每一项都是独立完整的一行。
+    const parts=String(text||'')
+      .split('；')
+      .map(s=>s.trim().replace(/[。；]+$/g,''))
+      .filter(Boolean);
+    return `<div class="function-description-lines">${parts.map(part=>
+      `<div class="function-description-line">${part}。</div>`
+    ).join('')}</div>`;
   }
   function renderAssistantInfo(trialData,isFormal=true){
     return `<div class="assistant-info-card">
@@ -1389,7 +1420,10 @@
         <div class="assistant-avatar-col">${avatarHTML()}</div>
         ${renderStatusGrid(trialData.config)}
         <div class="assistant-prompt-wrap">
-          <div class="function-description"><span class="function-description-label">功能说明：</span>${formatManipulationText(trialData.manipulationText)}</div>
+          <div class="function-description">
+            <div class="function-description-title">功能说明</div>
+            ${formatManipulationText(trialData.manipulationText)}
+          </div>
         </div>
       </div>
     </div>`;
