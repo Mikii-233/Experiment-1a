@@ -1,0 +1,2023 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>实验2b｜智驾乘车体验（成人版）</title>
+
+  <!-- exp2b/index.html 位于子目录；jsPsych 与 plugins 位于仓库根目录 -->
+  <script src="../jspsych/jspsych.js"></script>
+  <script src="../plugins/plugin-html-keyboard-response.js"></script>
+  <link rel="stylesheet" href="../jspsych/jspsych.css">
+
+  <style>
+    :root {
+      --bg:#1e1e24;
+      --panel:#2b2b36;
+      --panel-deep:#15151a;
+      --line:#444;
+      --text:#e8e8ea;
+      --muted:#aeb7c2;
+      --blue:#64b5f6;
+      --green:#4CAF50;
+      --orange:#FF9800;
+      --warning:#ffb74d;
+    }
+
+    html, body {
+      width:100%;
+      min-height:100%;
+      margin:0;
+      padding:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:"Microsoft YaHei","PingFang SC",sans-serif;
+      overflow-x:hidden;
+      overflow-y:auto;
+      -webkit-overflow-scrolling:touch;
+      -webkit-text-size-adjust:100%;
+      text-size-adjust:100%;
+      user-select:none;
+    }
+
+    button, input, select { touch-action:manipulation; font-family:inherit; }
+    button { -webkit-tap-highlight-color: transparent; }
+
+    #login-screen, #jspsych-target { width:100%; min-height:100dvh; }
+    .hidden { display:none !important; }
+
+    .jspsych-display-element {
+      background:var(--bg);
+      color:var(--text);
+      min-height:100dvh;
+      overflow-x:hidden;
+      overflow-y:auto;
+      -webkit-overflow-scrolling:touch;
+    }
+    .jspsych-content-wrapper {
+      width:100%;
+      min-height:100dvh;
+      height:auto;
+      padding:0;
+      box-sizing:border-box;
+      justify-content:center;
+      align-items:center;
+    }
+    .jspsych-content { width:100%; max-width:none; }
+
+    .fullscreen-container {
+      width:100%;
+      min-height:100dvh;
+      height:auto;
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      align-items:center;
+      box-sizing:border-box;
+      padding:18px 0;
+    }
+
+    .guide-box {
+      width:min(920px,90vw);
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:36px 48px;
+      box-sizing:border-box;
+      font-size:20px;
+      line-height:1.8;
+      text-align:left;
+    }
+    .guide-title {
+      text-align:center;
+      color:var(--blue);
+      font-size:32px;
+      font-weight:800;
+      margin-bottom:24px;
+    }
+    .context-box {
+      background:#383846;
+      border-left:5px solid var(--warning);
+      border-radius:6px;
+      padding:16px 22px;
+      margin-bottom:20px;
+      font-size:18px;
+      line-height:1.7;
+    }
+    .highlight { color:var(--warning); font-weight:800; }
+    .ability-text { color:var(--green); font-weight:800; }
+    .emotion-text { color:var(--orange); font-weight:800; }
+
+    .continue-btn, .action-btn, .login-btn {
+      min-width:180px;
+      min-height:52px;
+      padding:11px 28px;
+      border:0;
+      border-radius:10px;
+      background:var(--green);
+      color:white;
+      font-size:19px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .continue-btn:disabled, .action-btn:disabled { opacity:.4; cursor:not-allowed; }
+
+    /* ---------- 测试版登录 ---------- */
+    .login-box {
+      width:min(560px,90vw);
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:38px 34px;
+      text-align:center;
+      box-sizing:border-box;
+    }
+    .login-title { color:var(--blue); font-weight:800; font-size:30px; margin-bottom:16px; }
+    .login-sub { color:var(--muted); font-size:15px; line-height:1.65; margin-bottom:18px; }
+    .login-input, .risk-select {
+      width:min(360px,78vw);
+      box-sizing:border-box;
+      background:var(--panel-deep);
+      color:white;
+      border:2px solid var(--blue);
+      border-radius:9px;
+      padding:11px 12px;
+      font-size:20px;
+      text-align:center;
+      outline:none;
+      margin-bottom:14px;
+    }
+    .dev-note {
+      width:min(420px,82vw);
+      margin:0 auto 18px;
+      padding:10px 12px;
+      border-radius:8px;
+      background:#33291d;
+      border:1px solid #76582d;
+      color:#ffd69a;
+      font-size:13px;
+      line-height:1.5;
+      text-align:left;
+    }
+
+    /* ---------- 点数分配 ---------- */
+    .allocation-wrap {
+      display:flex;
+      gap:28px;
+      justify-content:center;
+      align-items:stretch;
+      margin:22px 0;
+    }
+    .allocation-card {
+      width:310px;
+      padding:22px;
+      border-radius:12px;
+      background:var(--panel-deep);
+      border:1px solid var(--line);
+      text-align:center;
+      box-sizing:border-box;
+    }
+    .allocation-card.ability { border-top:5px solid var(--green); }
+    .allocation-card.emotion { border-top:5px solid var(--orange); }
+    .allocation-score { font-size:52px; font-weight:900; margin:12px 0; }
+    .allocation-controls { display:flex; justify-content:center; gap:16px; }
+    .mini-btn {
+      width:58px;
+      height:48px;
+      border-radius:9px;
+      border:1px solid #666;
+      background:#383846;
+      color:white;
+      font-size:28px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .mini-btn:disabled { opacity:.3; cursor:not-allowed; }
+
+    /* ---------- 四助手介绍 ---------- */
+    .assistant-intro-grid {
+      width:min(1050px,92vw);
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:16px;
+    }
+    .assistant-intro-card {
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:12px;
+      padding:16px 18px;
+      display:grid;
+      grid-template-columns:92px 1fr;
+      gap:15px;
+      align-items:center;
+      box-sizing:border-box;
+    }
+    .avatar-box {
+      width:88px;
+      height:88px;
+      border-radius:14px;
+      background:#20212a;
+      border:1px solid #4b4b56;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      overflow:hidden;
+      flex:0 0 auto;
+    }
+    .avatar-box img { width:88%; height:88%; object-fit:contain; display:block; }
+    .avatar-fallback { display:none; align-items:center; justify-content:center; font-size:48px; width:100%; height:100%; }
+    .assistant-intro-title { font-size:22px; font-weight:900; margin-bottom:7px; }
+    .state-row { display:flex; flex-direction:column; align-items:flex-start; gap:7px; }
+    .state-label { font-size:16px; font-weight:800; }
+    .energy-bars { display:flex; gap:8px; align-items:center; }
+    .energy-cell {
+      width:58px;
+      height:20px;
+      border-radius:6px;
+      border:2px solid #717985;
+      box-sizing:border-box;
+      background:rgba(255,255,255,.04);
+    }
+    .energy-cell.ability.on { background:var(--green); border-color:var(--green); box-shadow:0 0 9px rgba(76,175,80,.32); }
+    .energy-cell.emotion.on { background:var(--orange); border-color:var(--orange); box-shadow:0 0 9px rgba(255,152,0,.32); }
+    .assistant-note { color:var(--muted); font-size:14px; line-height:1.5; margin-top:7px; }
+
+    /* ---------- Trial ---------- */
+    .trial-shell {
+      width:100%;
+      height:100dvh;
+      min-height:100dvh;
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+      box-sizing:border-box;
+      background:var(--bg);
+    }
+    .trial-header {
+      flex:0 0 6%;
+      min-height:42px;
+      width:100%;
+      background:var(--panel-deep);
+      border-bottom:1px solid #333;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:5px clamp(12px,4vw,50px);
+      box-sizing:border-box;
+      color:var(--muted);
+      font-size:clamp(12px,1vw,16px);
+    }
+    .scene-zone {
+      flex:0 0 36%;
+      min-height:210px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:var(--panel-deep);
+      padding:6px 0;
+      box-sizing:border-box;
+    }
+    .scene-image-frame {
+      position:relative;
+      width:min(94vw,720px);
+      aspect-ratio:637/315;
+      max-height:100%;
+      border-radius:9px;
+      overflow:hidden;
+      background:#101116;
+      box-shadow:0 4px 16px rgba(0,0,0,.45);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .scene-image { width:100%; height:100%; object-fit:contain; display:block; }
+    .scene-load-hint {
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:14px;
+      text-align:center;
+      color:var(--muted);
+      background:#101116;
+      font-size:15px;
+      z-index:2;
+    }
+
+    .assistant-zone {
+      flex:0 0 27%;
+      min-height:158px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:var(--bg);
+      border-top:1px solid #35353e;
+      border-bottom:1px solid #45454e;
+      padding:7px 12px;
+      box-sizing:border-box;
+    }
+    .assistant-info-card {
+      width:min(920px,94vw);
+      height:auto;
+      max-height:205px;
+      min-height:145px;
+      background:var(--panel);
+      border:1px solid #4b4b56;
+      border-radius:13px;
+      display:flex;
+      flex-direction:column;
+      padding:11px 18px 13px;
+      box-sizing:border-box;
+    }
+    .assistant-badge {
+      font-size:clamp(15px,1.25vw,20px);
+      font-weight:900;
+      color:white;
+      text-align:center;
+      margin-bottom:7px;
+      flex:0 0 auto;
+    }
+    .assistant-info-main {
+      width:100%;
+      min-width:0;
+      flex:1 1 auto;
+      display:grid;
+      grid-template-columns:148px minmax(0,1fr);
+      gap:18px;
+      align-items:center;
+    }
+    .assistant-left-stack {
+      min-width:0;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+    }
+    .formal-state-row {
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      gap:6px;
+      margin:0;
+    }
+    .formal-state-label { font-size:clamp(14px,1vw,18px); font-weight:900; text-align:center; }
+    .assistant-info-card .avatar-box { width:92px; height:92px; }
+    .assistant-prompt-wrap { min-width:0; display:flex; align-items:center; height:100%; }
+    .prompt-inline-label { font-weight:900; color:#dce6f0; }
+
+    .rating-zone {
+      flex:1 1 27%;
+      min-height:176px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      background:var(--panel);
+      padding:10px 8px calc(8px + env(safe-area-inset-bottom));
+      box-sizing:border-box;
+      overflow:hidden;
+    }
+    .rating-topline {
+      width:min(760px,92vw);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      min-height:28px;
+    }
+    .rating-progress { color:#9fa8b3; font-size:13px; }
+    .rating-back {
+      border:1px solid #666;
+      border-radius:7px;
+      background:#1f2028;
+      color:#c8d2dc;
+      min-height:34px;
+      padding:5px 10px;
+      font-size:12px;
+      cursor:pointer;
+    }
+    .rating-back.hidden-visibility { visibility:hidden; pointer-events:none; }
+    .rating-question {
+      width:min(820px,94vw);
+      text-align:center;
+      font-size:clamp(18px,1.45vw,27px);
+      line-height:1.35;
+      font-weight:900;
+      margin:5px 0 8px;
+      color:#f3f3f3;
+      overflow-wrap:anywhere;
+    }
+    .rating-options {
+      display:grid;
+      grid-template-columns:repeat(5,1fr);
+      gap:12px;
+      width:min(760px,92vw);
+    }
+    .rating-option {
+      min-width:0;
+      min-height:52px;
+      border-radius:10px;
+      border:2px solid #59616d;
+      background:#1f2028;
+      color:var(--blue);
+      font-size:23px;
+      font-weight:900;
+      cursor:pointer;
+    }
+    .rating-option.selected {
+      border-color:var(--green);
+      background:rgba(76,175,80,.16);
+      box-shadow:0 0 0 2px rgba(76,175,80,.14) inset;
+    }
+    .rating-option:disabled { opacity:.3; cursor:not-allowed; }
+    .rating-anchors {
+      width:min(760px,92vw);
+      display:grid;
+      grid-template-columns:1fr 1fr 1fr;
+      margin-top:3px;
+      color:#b8c4d1;
+      font-size:14px;
+    }
+    .rating-anchors span:nth-child(1){text-align:left;}
+    .rating-anchors span:nth-child(2){text-align:center;}
+    .rating-anchors span:nth-child(3){text-align:right;}
+    .rating-confirm {
+      margin-top:7px;
+      min-width:150px;
+      min-height:42px;
+      border:0;
+      border-radius:9px;
+      background:var(--green);
+      color:white;
+      font-size:16px;
+      font-weight:900;
+      cursor:pointer;
+    }
+    .rating-confirm:disabled { opacity:.4; cursor:not-allowed; }
+
+
+    /* ---------- 功能说明框 ---------- */
+    .speech-bubble {
+      position:relative;
+      background:#20212a;
+      border:1px solid #555b67;
+      border-radius:11px;
+      padding:10px 13px;
+      font-size:clamp(14px,1.08vw,19px);
+      line-height:1.55;
+      color:#f0f0f0;
+      overflow-wrap:anywhere;
+      box-shadow:0 2px 8px rgba(0,0,0,.16);
+    }
+    .speech-bubble::before {
+      content:'';
+      position:absolute;
+      left:-9px;
+      top:18px;
+      width:16px;
+      height:16px;
+      background:#20212a;
+      border-left:1px solid #555b67;
+      border-bottom:1px solid #555b67;
+      transform:rotate(45deg);
+    }
+
+    .function-description {
+      width:100%;
+      background:#20212a;
+      border:1px solid #555b67;
+      border-radius:11px;
+      padding:10px 15px 11px;
+      box-sizing:border-box;
+      color:#f0f0f0;
+      box-shadow:0 2px 8px rgba(0,0,0,.16);
+    }
+    /* “功能说明”单独作为标题，不占用三条功能解释的行内空间。 */
+    .function-description-title {
+      font-weight:900;
+      color:#dce6f0;
+      font-size:clamp(13px,1vw,17px);
+      line-height:1.25;
+      margin-bottom:7px;
+    }
+    /* 觉察→共情→调节固定三行呈现，便于与左侧三行能量格一一对应。 */
+    .function-description-lines {
+      display:grid;
+      gap:5px;
+    }
+    .function-description-line {
+      font-size:clamp(13px,1.02vw,18px);
+      line-height:1.35;
+      white-space:nowrap;
+    }
+
+    /* ---------- 结束 ---------- */
+    .debug-data {
+      width:min(820px,88vw);
+      max-height:220px;
+      overflow:auto;
+      margin:16px auto;
+      padding:10px;
+      box-sizing:border-box;
+      background:#111217;
+      border:1px solid #444;
+      border-radius:8px;
+      color:#9eadba;
+      font-size:11px;
+      user-select:text;
+      white-space:pre-wrap;
+      text-align:left;
+    }
+
+    /* ---------- 平板 ---------- */
+    @media (max-width:900px) {
+      .guide-box { width:94vw; padding:24px; font-size:17px; }
+      .guide-title { font-size:27px; }
+      .assistant-intro-grid { width:94vw; gap:10px; }
+      .assistant-intro-card { grid-template-columns:76px 1fr; padding:12px; }
+      .avatar-box { width:72px; height:72px; }
+      .energy-cell { width:43px; height:18px; }
+      .assistant-info-card { width:96vw; padding:10px 14px 12px; }
+      .assistant-info-main { grid-template-columns:132px minmax(0,1fr); gap:12px; }
+      .assistant-info-card .avatar-box { width:82px; height:82px; }
+      .rating-options { gap:8px; }
+    }
+
+    /* ---------- 手机竖屏 ---------- */
+    @media (max-width:650px) {
+      html,body,#login-screen,#jspsych-target,.jspsych-display-element { min-height:100svh; }
+      .jspsych-content-wrapper { min-height:100svh; height:auto; align-items:flex-start; }
+      .fullscreen-container {
+        min-height:100svh;
+        height:auto;
+        justify-content:flex-start;
+        padding:12px 0 calc(16px + env(safe-area-inset-bottom));
+      }
+      #login-screen.fullscreen-container { justify-content:center; }
+
+      .guide-box { width:92vw; padding:16px 15px; font-size:15px; line-height:1.55; }
+      .guide-title { font-size:23px; margin-bottom:12px; }
+      .context-box { padding:10px 12px; font-size:14px; line-height:1.5; margin-bottom:10px; }
+      .continue-btn,.action-btn,.login-btn { min-height:46px; min-width:150px; padding:8px 16px; font-size:16px; }
+
+      .login-box { width:92vw; padding:22px 16px; }
+      .login-title { font-size:24px; }
+      .login-input,.risk-select { width:78vw; font-size:18px; }
+
+      .allocation-wrap { width:100%; gap:8px; margin:12px 0; }
+      .allocation-card { width:calc(50% - 4px); padding:11px 7px; }
+      .allocation-score { font-size:38px; margin:7px 0; }
+      .mini-btn { width:48px; height:42px; font-size:23px; }
+
+      .assistant-intro-grid { grid-template-columns:1fr 1fr; width:92vw; gap:7px; }
+      .assistant-intro-card { grid-template-columns:52px 1fr; gap:7px; padding:8px 7px; border-radius:9px; }
+      .assistant-intro-card .avatar-box { width:50px; height:50px; border-radius:9px; }
+      .assistant-intro-title { font-size:14px; margin-bottom:3px; }
+      .state-label { font-size:11.5px; }
+      .energy-bars { gap:4px; }
+      .energy-cell { width:25px; height:11px; border-width:1.5px; border-radius:3px; }
+      .assistant-note { font-size:10.5px; margin-top:3px; }
+
+      .trial-shell {
+        height:100svh;
+        min-height:100svh;
+        overflow-x:hidden;
+        overflow-y:auto;
+        -webkit-overflow-scrolling:touch;
+        overscroll-behavior-y:contain;
+        padding-bottom:env(safe-area-inset-bottom);
+      }
+      .trial-header { flex:0 0 5%; min-height:34px; padding:3px 9px; font-size:11px; }
+      .scene-zone { flex:0 0 31%; min-height:165px; padding:3px 0; }
+      .scene-image-frame { width:96vw; max-width:637px; }
+      /* 手机正式试次：助手区域改为内容驱动高度，避免中部出现大块空白。 */
+      .assistant-zone { flex:0 0 auto; min-height:0; padding:6px 6px; }
+      .assistant-info-card {
+        width:95vw;
+        height:auto;
+        min-height:0;
+        max-height:none;
+        padding:7px 9px 9px;
+        border-radius:10px;
+      }
+      .assistant-badge { font-size:13px; margin-bottom:4px; }
+      /* 状态与能量条位于头像正上方；气泡固定在头像右侧并垂直居中。 */
+      .assistant-info-main { grid-template-columns:88px minmax(0,1fr); gap:8px; align-items:center; }
+      .assistant-left-stack { gap:4px; justify-content:flex-start; }
+      .formal-state-row { gap:3px; margin:0; }
+      .formal-state-label { font-size:12px; line-height:1.2; }
+      .assistant-info-card .energy-bars { gap:4px; }
+      .assistant-info-card .energy-cell { width:28px; height:12px; }
+      .assistant-info-card .avatar-box { width:58px; height:58px; border-radius:9px; }
+      .assistant-prompt-wrap { height:auto; align-self:center; width:100%; }
+      .speech-bubble { width:100%; box-sizing:border-box; padding:8px 10px; font-size:12.5px; line-height:1.45; border-radius:9px; }
+      .speech-bubble::before { left:-7px; top:50%; transform:translateY(-50%) rotate(45deg); width:12px; height:12px; }
+
+
+      .rating-zone { flex:1 0 30%; min-height:176px; padding:6px 5px calc(6px + env(safe-area-inset-bottom)); }
+      .rating-topline { width:94vw; min-height:29px; }
+      .rating-progress { font-size:11px; }
+      .rating-back { min-height:32px; font-size:10.5px; padding:4px 7px; }
+      .rating-question { width:94vw; font-size:15px; line-height:1.35; margin:1px 0 5px; }
+      .rating-options { width:94vw; gap:6px; }
+      .rating-option { min-height:44px; padding:1px; font-size:19px; border-radius:8px; }
+      .rating-anchors { width:94vw; font-size:10.5px; }
+      .rating-confirm { min-height:40px; margin-top:5px; font-size:14px; }
+
+      .trial-shell.adaptive-scroll {
+        height:auto !important;
+        min-height:100svh !important;
+        overflow-y:auto !important;
+      }
+      .trial-shell.adaptive-scroll > * {
+        flex:0 0 auto !important;
+        height:auto !important;
+        max-height:none !important;
+        overflow:visible !important;
+      }
+      .trial-shell.adaptive-scroll .scene-zone { min-height:170px; }
+      .trial-shell.adaptive-scroll .assistant-zone { min-height:0; padding:8px 6px; }
+      .trial-shell.adaptive-scroll .assistant-info-card { height:auto; min-height:0; }
+      .trial-shell.adaptive-scroll .rating-zone { min-height:0; padding-top:10px; padding-bottom:calc(10px + env(safe-area-inset-bottom)); }
+    }
+
+    @media (max-width:900px) and (orientation:landscape) {
+      .trial-shell { min-height:100dvh; height:auto; overflow-y:auto; }
+    }
+  
+
+    /* ---------- 实验2b：概念学习 + 小测验 ---------- */
+    .concept-intro {
+      width:min(960px,90vw);
+      margin:0 auto 18px;
+      text-align:center;
+      color:#d7dde5;
+      font-size:17px;
+      line-height:1.65;
+    }
+    .concept-cards {
+      display:flex;
+      gap:22px;
+      width:min(1080px,92vw);
+      margin:0 auto 22px;
+      align-items:stretch;
+    }
+    .concept-card {
+      flex:1;
+      min-width:0;
+      background:#383846;
+      border:1px solid #4b4b56;
+      border-top:4px solid var(--orange);
+      border-radius:10px;
+      padding:18px 20px;
+      box-sizing:border-box;
+      text-align:left;
+    }
+    .concept-card h3 {
+      margin:0 0 10px;
+      padding-bottom:9px;
+      border-bottom:1px solid #555;
+      font-size:20px;
+      line-height:1.4;
+      color:#f0f0f0;
+    }
+    .concept-card p {
+      margin:0;
+      color:#c2c9d1;
+      font-size:16px;
+      line-height:1.7;
+    }
+    .quiz-section {
+      width:min(960px,90vw);
+      background:var(--panel-deep);
+      border:1px solid var(--line);
+      border-radius:10px;
+      padding:20px 26px;
+      box-sizing:border-box;
+      font-size:18px;
+      line-height:1.65;
+      text-align:left;
+    }
+    .quiz-options {
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:12px;
+      margin-top:16px;
+    }
+    .quiz-option {
+      min-height:52px;
+      border-radius:9px;
+      border:1px solid #666;
+      background:#2b2b36;
+      color:#f0f0f0;
+      font-size:17px;
+      font-weight:800;
+      cursor:pointer;
+      padding:9px 10px;
+    }
+    .quiz-option.selected { border-color:var(--blue); box-shadow:0 0 0 2px rgba(100,181,246,.22) inset; }
+    .quiz-option.correct { border-color:var(--green); background:rgba(76,175,80,.17); }
+    .quiz-option.wrong { border-color:#ff7043; background:rgba(255,112,67,.13); }
+    .quiz-feedback { min-height:24px; margin-top:10px; text-align:center; color:var(--muted); font-size:15px; font-weight:700; }
+
+    /* ---------- 实验2b：能量条学习 ---------- */
+    .energy-learning-box {
+      width:min(900px,90vw);
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:12px;
+      padding:20px 24px;
+      box-sizing:border-box;
+      margin:0 auto 26px;
+    }
+    .level-examples {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:24px;
+      margin-top:18px;
+    }
+    .level-example {
+      background:var(--panel-deep);
+      border:1px solid #4a4f59;
+      border-radius:10px;
+      padding:17px 14px;
+      text-align:center;
+      font-size:16px;
+      font-weight:800;
+    }
+    .level-example .energy-bars { justify-content:center; margin-bottom:8px; }
+    .example-card {
+      width:min(760px,88vw);
+      background:#383846;
+      border:1px solid #515762;
+      border-radius:11px;
+      padding:18px 22px 20px;
+      box-sizing:border-box;
+      margin:0 auto 26px;
+    }
+    .example-label { text-align:center; color:#ffcf8a; font-weight:900; font-size:16px; margin-bottom:15px; }
+    .energy-example-main {
+      width:min(570px,96%);
+      margin:0 auto;
+      display:grid;
+      grid-template-columns:100px minmax(0,1fr);
+      gap:28px;
+      align-items:center;
+    }
+    .energy-example-avatar { display:flex; align-items:center; justify-content:center; }
+    .example-card .avatar-box { width:88px; height:88px; }
+    .example-status-grid {
+      width:100%;
+      margin:0 auto;
+      display:grid;
+      gap:16px;
+    }
+    .example-status-row {
+      display:grid;
+      grid-template-columns:110px 1fr;
+      align-items:center;
+      gap:18px;
+    }
+    .example-status-name { text-align:right; font-weight:900; color:var(--orange); }
+
+    /* ---------- 实验2b：正式trial三维功能 ---------- */
+    .assistant-info-main.three-dim {
+      grid-template-columns:100px 190px minmax(0,1fr);
+      grid-template-areas:'avatar states bubble';
+      gap:15px;
+    }
+    .assistant-avatar-col { grid-area:avatar; display:flex; align-items:center; justify-content:center; }
+    .status-grid { grid-area:states; display:grid; gap:7px; min-width:0; }
+    .dim-state {
+      display:grid;
+      grid-template-columns:76px 1fr;
+      align-items:center;
+      gap:7px;
+      min-width:0;
+    }
+    .dim-state-label { color:var(--orange); font-size:14px; font-weight:900; text-align:right; white-space:nowrap; }
+    .status-grid .energy-bars { gap:6px; }
+    .status-grid .energy-cell { width:38px; height:15px; }
+    .assistant-info-main.three-dim .assistant-prompt-wrap { grid-area:bubble; }
+
+    @media (max-width:900px) {
+      .concept-cards { width:94vw; gap:10px; }
+      .concept-card { padding:13px 14px; }
+      .concept-card h3 { font-size:17px; }
+      .concept-card p { font-size:14px; }
+      .assistant-info-main.three-dim { grid-template-columns:82px 165px minmax(0,1fr); gap:10px; }
+      .dim-state { grid-template-columns:66px 1fr; gap:5px; }
+      .dim-state-label { font-size:12.5px; }
+      .status-grid .energy-cell { width:30px; height:13px; }
+    }
+
+    @media (max-width:650px) {
+      .concept-intro { width:92vw; font-size:14px; line-height:1.5; margin-bottom:10px; }
+      .concept-cards {
+        width:92vw;
+        flex-direction:column;
+        gap:9px;
+        margin-bottom:9px;
+      }
+      .concept-card { padding:9px 11px; border-top-width:3px; }
+      .concept-card h3 { font-size:15px; margin-bottom:5px; padding-bottom:5px; }
+      .concept-card p { font-size:13px; line-height:1.45; }
+      .quiz-section { width:92vw; padding:11px 12px; font-size:14px; line-height:1.5; }
+      .quiz-options { gap:6px; margin-top:10px; }
+      .quiz-option { min-height:42px; padding:6px 4px; font-size:13px; }
+      .quiz-feedback { font-size:13px; min-height:18px; margin-top:7px; }
+
+      .energy-learning-box { width:92vw; padding:12px; margin-bottom:13px; }
+      .level-examples { gap:9px; margin-top:10px; }
+      .level-example { padding:10px 6px; font-size:13px; }
+      .example-card { width:92vw; padding:12px 10px 13px; margin-bottom:13px; }
+      .example-label { font-size:13px; margin-bottom:9px; }
+      .energy-example-main { width:96%; grid-template-columns:60px minmax(0,1fr); gap:10px; }
+      .example-card .avatar-box { width:58px; height:58px; }
+      .example-status-grid { width:100%; gap:9px; }
+      .example-status-row { grid-template-columns:78px 1fr; gap:7px; }
+      .example-status-name { font-size:12px; }
+
+      /* 手机正式trial：尽量保持与电脑端一致的三栏结构。
+         左：机器人头像；中：觉察/共情/调节三行能量格；右：功能说明三行。
+         仅缩小间距与字号，不改变信息结构和阅读顺序。 */
+      .assistant-info-card {
+        width:97vw;
+        padding:7px 7px 8px;
+      }
+      .assistant-info-main.three-dim {
+        grid-template-columns:50px 120px minmax(0,1fr);
+        grid-template-areas:'avatar states bubble';
+        column-gap:6px;
+        row-gap:0;
+        align-items:center;
+      }
+      .assistant-avatar-col {
+        align-self:center;
+        justify-self:center;
+      }
+      .assistant-avatar-col .avatar-box {
+        width:48px;
+        height:48px;
+        border-radius:8px;
+      }
+      .status-grid {
+        grid-template-columns:1fr;
+        gap:7px;
+        margin:0;
+        width:100%;
+      }
+      .dim-state {
+        display:grid;
+        grid-template-columns:54px auto;
+        justify-content:start;
+        align-items:center;
+        gap:5px;
+      }
+      .dim-state-label {
+        font-size:10.5px;
+        line-height:1.15;
+        text-align:right;
+      }
+      .status-grid .energy-bars {
+        gap:3px;
+        justify-content:flex-start;
+      }
+      .status-grid .energy-cell {
+        width:22px;
+        height:10px;
+        border-width:1.2px;
+        border-radius:3px;
+      }
+      .assistant-info-main.three-dim .assistant-prompt-wrap {
+        grid-area:bubble;
+        width:100%;
+        min-width:0;
+        align-self:center;
+      }
+      .function-description {
+        padding:6px 7px 7px;
+        border-radius:8px;
+      }
+      .function-description-title {
+        font-size:11px;
+        line-height:1.15;
+        margin-bottom:4px;
+      }
+      .function-description-lines { gap:3px; }
+      .function-description-line {
+        font-size:10.5px;
+        line-height:1.25;
+        white-space:nowrap;
+      }
+      .assistant-zone { padding-top:5px; padding-bottom:5px; }
+    }
+
+
+  </style>
+</head>
+<body>
+
+<div id="login-screen" class="fullscreen-container">
+  <div class="login-box">
+    <div class="login-title">进入智驾乘车体验</div>
+    <div id="login-info" class="login-sub">请输入您在前一部分体验中使用的匿名实验编号，以便匹配不同部分的数据。请勿填写姓名、手机号等个人信息。</div>
+    <input id="subject-id-input" class="login-input" type="text" placeholder="例如：P-ABC123" maxlength="30" autocomplete="off">
+    <br>
+    <button id="login-btn" class="login-btn">进入体验</button>
+  </div>
+</div>
+
+<div id="jspsych-target"></div>
+
+<script>
+  /* =========================================================
+     实验2b｜情感属性三维度 × 风险水平（成人版）
+     ---------------------------------------------------------
+     页面骨架：继承实验1b的正式trial响应式布局
+     学习流程：继承实验3a的概念学习 + 小测验框架
+     正式设计：6种情感配置 × 2风险水平 × 2重复 = 24 trial
+     平衡：DataPipe 3 conditions -> Sequence A / B / C
+     数据：DataPipe -> Google Drive
+     ========================================================= */
+
+  const STUDY_ID = 'Exp2B';
+  const DEFAULT_STUDY_PATH = '1A_2B';
+  const AGE_GROUP = 'Adult';
+  const IMAGE_FORMAT = 'lossless_webp';
+  const ASSET_BASE = '../risk_img/';
+  const ROBOT_IMAGE = `${ASSET_BASE}robot.webp`;
+
+  const MASTER_PID_KEY = 'master_participant_id_v1';
+  const STUDY_PATH_KEY = 'master_study_path_v1';
+
+  const DATAPIPE_EXPERIMENT_ID = 'l5p7Iid6EsnX';
+  const DATAPIPE_REQUIRED = true;
+  const DATAPIPE_BASE = 'https://pipe.jspsych.org/api';
+
+  let currentSubjectId = '';
+  let studyPath = DEFAULT_STUDY_PATH;
+  let dataPipeCondition = null;
+  let sequenceName = '';
+  let currentVersion = '';
+  let baselineAbility = null;
+  let baselineEmotion = null;
+  let conceptQuizAttempts = null;
+  let energyQuizAttempts = null;
+
+  let experimentStartedAtMs = null;
+  let formalStartedAtMs = null;
+  let experimentEndedAtMs = null;
+  let pageHiddenCount = 0;
+  let pageHiddenTotalMs = 0;
+  let pageHiddenStartedAtMs = null;
+
+  const sessionUUID = (window.crypto && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : `fallback-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+  /* =========================================================
+     1. DataPipe / Google Drive
+     ========================================================= */
+  function dataPipeConfigured(){
+    return DATAPIPE_EXPERIMENT_ID && !DATAPIPE_EXPERIMENT_ID.startsWith('REPLACE_');
+  }
+
+  async function getDataPipeCondition(){
+    if(!dataPipeConfigured()) throw new Error('DataPipe experiment ID 尚未配置。');
+
+    const storageKey = `Exp2b_DP_Condition_${currentSubjectId}`;
+    const cached = sessionStorage.getItem(storageKey);
+    if(cached === '0' || cached === '1' || cached === '2') return Number(cached);
+
+    const response = await fetch(`${DATAPIPE_BASE}/condition/`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({experimentID:DATAPIPE_EXPERIMENT_ID})
+    });
+    const result = await response.json().catch(()=>({}));
+    if(!response.ok || typeof result.condition !== 'number'){
+      throw new Error(result.message || `DataPipe 条件分配失败（HTTP ${response.status}）`);
+    }
+    if(![0,1,2].includes(result.condition)){
+      throw new Error(`收到未预期的条件编号：${result.condition}。请确认 DataPipe 条件数设置为 3。`);
+    }
+    sessionStorage.setItem(storageKey, String(result.condition));
+    return result.condition;
+  }
+
+  function pad2(n){ return String(n).padStart(2,'0'); }
+  function pad3(n){ return String(n).padStart(3,'0'); }
+  function formatLocalTimestamp(date=new Date()){
+    return `${date.getFullYear()}${pad2(date.getMonth()+1)}${pad2(date.getDate())}_${pad2(date.getHours())}${pad2(date.getMinutes())}${pad2(date.getSeconds())}_${pad3(date.getMilliseconds())}`;
+  }
+  function buildUniqueDataFilename(){
+    const safeSubject = String(currentSubjectId).replace(/[^a-zA-Z0-9_-]/g,'_');
+    return `${formatLocalTimestamp(new Date())}_Exp2b_Adult_Subject${safeSubject}_Seq${sequenceName}.csv`;
+  }
+
+  const CLEAN_CSV_COLUMNS = [
+    'Subject_ID','Study_ID','Study_Path','Session_UUID','Age_Group',
+    'DataPipe_Condition','Version','Sequence',
+    'Formal_Trial_Order','Block','Block_Position',
+    'Image_Number','Image_ID','Image_File','Scene_ID','Scene_Name','Risk_Level',
+    'Config_Code','Config_Name_CN','Awareness_Level','Empathy_Level','Regulation_Level','Manipulation_Text',
+    'Warmth_Score','Warmth_RT_ms','Trust_Score','Trust_RT_ms','Cooperation_Score','Cooperation_RT_ms',
+    'Back_Count','Total_Trial_Time_ms',
+    'Experiment_Total_Time_ms','Formal_Total_Time_ms','Page_Hidden_Count','Page_Hidden_Total_ms',
+    'Baseline_Ability_Points','Baseline_Emotion_Points','Concept_Quiz_Attempts','Energy_Quiz_Attempts',
+    'Browser_Context','User_Agent','Image_Format'
+  ];
+
+  function csvEscape(value){
+    if(value === null || value === undefined) return '';
+    const s = String(value);
+    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+  }
+
+  function buildCleanFormalCSV(){
+    const rows = jsPsych.data.get().filter({Event_Type:'Formal_Trial'}).values();
+    const sessionMetrics = {
+      Experiment_Total_Time_ms: experimentTotalTimeMs(),
+      Formal_Total_Time_ms: formalTotalTimeMs(),
+      Page_Hidden_Count: pageHiddenCount,
+      Page_Hidden_Total_ms: pageHiddenTotalMs,
+      Concept_Quiz_Attempts: conceptQuizAttempts,
+      Energy_Quiz_Attempts: energyQuizAttempts
+    };
+    const lines = [CLEAN_CSV_COLUMNS.join(',')];
+    rows.forEach(row=>{
+      const exportRow = {...row, ...sessionMetrics};
+      lines.push(CLEAN_CSV_COLUMNS.map(col=>csvEscape(exportRow[col])).join(','));
+    });
+    return lines.join('\r\n');
+  }
+
+  async function uploadFinalDataToDataPipe(csvString){
+    if(!dataPipeConfigured()) throw new Error('DataPipe experiment ID 尚未配置。');
+    const filename = buildUniqueDataFilename();
+    const response = await fetch(`${DATAPIPE_BASE}/data/`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        experimentID:DATAPIPE_EXPERIMENT_ID,
+        filename,
+        data:csvString
+      })
+    });
+    const result = await response.json().catch(()=>({}));
+    // 201 = 已写入；202 = DataPipe 已安全接收并排队写入。两者均视为成功。
+    if(response.status !== 201 && response.status !== 202){
+      const code = result.error ? ` [${result.error}]` : '';
+      throw new Error(`${result.message || `DataPipe 数据上传失败（HTTP ${response.status}）`}${code}`);
+    }
+    return {filename,result,httpStatus:response.status,queued:response.status===202};
+  }
+
+  function prepareLocalBackup(csvString){
+    window.downloadCSV = function(){
+      const safeSubject = String(currentSubjectId).replace(/[^a-zA-Z0-9_-]/g,'_');
+      const fileName = `BACKUP_${formatLocalTimestamp(new Date())}_Exp2b_Subject${safeSubject}_Seq${sequenceName}.csv`;
+      const blob = new Blob([csvString.startsWith('\uFEFF') ? csvString : '\uFEFF'+csvString], {type:'text/csv;charset=utf-8;'});
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.href=url;
+      link.download=fileName;
+      link.style.visibility='hidden';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    };
+  }
+
+  /* =========================================================
+     2. 在线实验质量记录
+     ========================================================= */
+  function experimentIsActive(){
+    return experimentStartedAtMs !== null && experimentEndedAtMs === null;
+  }
+  function handleVisibilityChange(){
+    const now=Date.now();
+    if(document.hidden){
+      if(experimentIsActive() && pageHiddenStartedAtMs===null){
+        pageHiddenCount++;
+        pageHiddenStartedAtMs=now;
+      }
+    }else if(pageHiddenStartedAtMs!==null){
+      if(experimentIsActive()) pageHiddenTotalMs += Math.max(0,now-pageHiddenStartedAtMs);
+      else if(experimentEndedAtMs!==null) pageHiddenTotalMs += Math.max(0,experimentEndedAtMs-pageHiddenStartedAtMs);
+      pageHiddenStartedAtMs=null;
+    }
+  }
+  document.addEventListener('visibilitychange',handleVisibilityChange);
+
+  function finalizeExperimentTiming(){
+    if(experimentEndedAtMs!==null) return;
+    experimentEndedAtMs=Date.now();
+    if(pageHiddenStartedAtMs!==null){
+      pageHiddenTotalMs += Math.max(0,experimentEndedAtMs-pageHiddenStartedAtMs);
+      pageHiddenStartedAtMs=null;
+    }
+  }
+  function experimentTotalTimeMs(){
+    return (experimentStartedAtMs!==null && experimentEndedAtMs!==null)
+      ? Math.max(0,experimentEndedAtMs-experimentStartedAtMs) : null;
+  }
+  function formalTotalTimeMs(){
+    return (formalStartedAtMs!==null && experimentEndedAtMs!==null)
+      ? Math.max(0,experimentEndedAtMs-formalStartedAtMs) : null;
+  }
+  function isWeChatWebView(){ return /MicroMessenger/i.test(navigator.userAgent||''); }
+  function getBrowserContext(){
+    const ua=navigator.userAgent||'';
+    if(isWeChatWebView()) return 'WeChat_WebView';
+    if(/EdgiOS|EdgA|Edg/i.test(ua)) return 'Edge';
+    if(/CriOS|Chrome/i.test(ua)) return 'Chrome_or_Chromium';
+    if(/Firefox|FxiOS/i.test(ua)) return 'Firefox';
+    if(/Safari/i.test(ua) && !/Chrome|CriOS|Edg|FxiOS/i.test(ua)) return 'Safari';
+    return 'Other';
+  }
+
+  /* =========================================================
+     3. jsPsych 初始化
+     ========================================================= */
+  const jsPsych = initJsPsych({
+    display_element:'jspsych-target',
+    on_finish:async function(){
+      finalizeExperimentTiming();
+      const rawCleanCsv=buildCleanFormalCSV();
+      const csvString='\uFEFF'+rawCleanCsv;
+      prepareLocalBackup(csvString);
+
+      document.getElementById('jspsych-target').innerHTML=`
+        <div class="fullscreen-container">
+          <div class="guide-box" style="text-align:center;max-width:780px;">
+            <div class="guide-title">体验已完成，正在提交数据……</div>
+            <p style="color:#bbb;line-height:1.8;">请暂时不要关闭、刷新或返回此页面。数据保存成功后会自动显示确认信息。</p>
+          </div>
+        </div>`;
+
+      try{
+        const upload=await uploadFinalDataToDataPipe(csvString);
+        const statusText=upload.queued
+          ? '数据已由 DataPipe 安全接收，并正在自动写入 Google Drive。'
+          : '数据已成功保存至 Google Drive。';
+        document.getElementById('jspsych-target').innerHTML=`
+          <div class="fullscreen-container">
+            <div class="guide-box" style="text-align:center;max-width:780px;">
+              <div class="guide-title" style="color:var(--green);">✓ 数据提交成功</div>
+              <p style="color:#ddd;line-height:1.8;">${statusText}<br>本次体验已全部结束，感谢您的参与！现在可以安全关闭此页面。</p>
+              <p style="color:#777;font-size:13px;">数据文件：${upload.filename}</p>
+            </div>
+          </div>`;
+      }catch(error){
+        console.error('DataPipe upload failed:',error);
+        document.getElementById('jspsych-target').innerHTML=`
+          <div class="fullscreen-container">
+            <div class="guide-box" style="text-align:center;max-width:820px;">
+              <div class="guide-title" style="color:#ff7043;">数据暂未成功上传</div>
+              <p style="color:#ddd;line-height:1.8;">请不要直接关闭页面。您可以先检查网络；如研究者允许，也可点击下方按钮保存本地备份文件并联系研究者。</p>
+              <p style="color:var(--warning);font-size:14px;word-break:break-all;">错误信息：${String(error.message||error)}</p>
+              <button onclick="downloadCSV()" class="continue-btn" style="background:var(--blue);color:#111;">保存本地备份 CSV</button>
+              <p style="color:#777;font-size:13px;margin-top:16px;">会话编号：${sessionUUID}</p>
+            </div>
+          </div>`;
+      }
+    }
+  });
+
+  /* =========================================================
+     4. 场景、配置与固定文本
+     ========================================================= */
+  const SCENES = {
+    1:{name:'侧方车辆并入', imageHigh:'high1.webp', imageLow:'low1.webp'},
+    2:{name:'施工路段',     imageHigh:'high2.webp', imageLow:'low2.webp'},
+    3:{name:'居民区路口',   imageHigh:'high3.webp', imageLow:'low3.webp'},
+    4:{name:'十字路口',     imageHigh:'high4.webp', imageLow:'low4.webp'},
+    5:{name:'弯道路段',     imageHigh:'high5.webp', imageLow:'low5.webp'},
+    6:{name:'停车场景',     imageHigh:'high6.webp', imageLow:'low6.webp'}
+  };
+
+  const CONFIGS = {
+    LHH:{code:'LHH',name:'低觉察-高共情-高调节',awareness:1,empathy:2,regulation:2,
+      text:'察觉您情绪变化的能力较弱；能够理解您的感受并作出回应；能够主动安抚您并帮助您平复情绪。'},
+    HHL:{code:'HHL',name:'高觉察-高共情-低调节',awareness:2,empathy:2,regulation:1,
+      text:'能够及时察觉您的情绪变化；能够理解您的感受并作出回应；主动安抚并帮助您平复情绪的能力较弱。'},
+    HLH:{code:'HLH',name:'高觉察-低共情-高调节',awareness:2,empathy:1,regulation:2,
+      text:'能够及时察觉您的情绪变化；理解并回应您感受的能力较弱；能够主动安抚您并帮助您平复情绪。'},
+    LLH:{code:'LLH',name:'低觉察-低共情-高调节',awareness:1,empathy:1,regulation:2,
+      text:'察觉您情绪变化的能力较弱；理解并回应您感受的能力较弱；能够主动安抚您并帮助您平复情绪。'},
+    LHL:{code:'LHL',name:'低觉察-高共情-低调节',awareness:1,empathy:2,regulation:1,
+      text:'察觉您情绪变化的能力较弱；能够理解您的感受并作出回应；主动安抚并帮助您平复情绪的能力较弱。'},
+    HLL:{code:'HLL',name:'高觉察-低共情-低调节',awareness:2,empathy:1,regulation:1,
+      text:'能够及时察觉您的情绪变化；理解并回应您感受的能力较弱；主动安抚并帮助您平复情绪的能力较弱。'}
+  };
+
+  /*
+     三套固定平衡序列：
+     - 每套24 trial；每张图片出现2次；每个Config出现4次（High 2 + Low 2）。
+     - 三套合计72个 Image × Config 配对，恰好覆盖 12图片 × 6配置，各1次，无遗漏、无重复。
+     - 同场景尽量拉开，同配置不连续；Block 1/2各12 trial。
+  */
+  const SEQUENCE_TEMPLATES = {
+    A:[
+      ['high1.webp','LHH'],['low3.webp','HLH'],['high5.webp','LHL'],['low2.webp','HHL'],
+      ['high4.webp','LLH'],['low6.webp','HLL'],['high3.webp','HLH'],['low5.webp','LHL'],
+      ['high2.webp','HHL'],['low4.webp','LLH'],['high6.webp','HLL'],['low1.webp','LHH'],
+      ['low2.webp','LHL'],['high5.webp','HHL'],['low6.webp','HLH'],['high1.webp','LLH'],
+      ['low3.webp','HLL'],['high2.webp','LHL'],['low4.webp','LHH'],['high6.webp','HLH'],
+      ['low1.webp','LLH'],['high3.webp','HLL'],['low5.webp','HHL'],['high4.webp','LHH']
+    ],
+    B:[
+      ['high1.webp','HHL'],['low3.webp','LLH'],['high5.webp','HLL'],['low2.webp','HLH'],
+      ['high4.webp','LHL'],['low6.webp','LHH'],['high3.webp','LLH'],['low5.webp','HLL'],
+      ['high2.webp','HLH'],['low4.webp','LHL'],['high6.webp','LHH'],['low1.webp','HHL'],
+      ['low2.webp','HLL'],['high5.webp','HLH'],['low6.webp','LLH'],['high1.webp','LHL'],
+      ['low3.webp','LHH'],['high2.webp','HLL'],['low4.webp','HHL'],['high6.webp','LLH'],
+      ['low1.webp','LHL'],['high3.webp','LHH'],['low5.webp','HLH'],['high4.webp','HHL']
+    ],
+    C:[
+      ['high1.webp','HLH'],['low3.webp','LHL'],['high5.webp','LHH'],['low2.webp','LLH'],
+      ['high4.webp','HLL'],['low6.webp','HHL'],['high3.webp','LHL'],['low5.webp','LHH'],
+      ['high2.webp','LLH'],['low4.webp','HLL'],['high6.webp','HHL'],['low1.webp','HLH'],
+      ['low2.webp','LHH'],['high5.webp','LLH'],['low6.webp','LHL'],['high1.webp','HLL'],
+      ['low3.webp','HHL'],['high2.webp','LHH'],['low4.webp','HLH'],['high6.webp','LHL'],
+      ['low1.webp','HLL'],['high3.webp','HHL'],['low5.webp','LLH'],['high4.webp','HLH']
+    ]
+  };
+
+  function imageMeta(file){
+    const m=String(file).match(/^(high|low)([1-6])\.webp$/i);
+    if(!m) throw new Error(`无法解析风险图片：${file}`);
+    const risk=m[1].toLowerCase()==='high'?'High':'Low';
+    const sceneId=Number(m[2]);
+    return {risk,sceneId};
+  }
+
+  function validateSequenceTemplates(){
+    const errors=[];
+    const codes=Object.keys(CONFIGS);
+    const images=[];
+    ['high','low'].forEach(r=>{ for(let i=1;i<=6;i++) images.push(`${r}${i}.webp`); });
+    const globalPairs=new Set();
+
+    ['A','B','C'].forEach(seq=>{
+      const rows=SEQUENCE_TEMPLATES[seq];
+      if(rows.length!==24) errors.push(`Sequence ${seq} trial数=${rows.length}`);
+      const cfgCount=Object.fromEntries(codes.map(c=>[c,0]));
+      const cfgRisk=Object.fromEntries(codes.map(c=>[c,{High:0,Low:0}]));
+      const imgCount=Object.fromEntries(images.map(x=>[x,0]));
+      rows.forEach(([img,cfg],i)=>{
+        if(!CONFIGS[cfg]) errors.push(`${seq} Trial${i+1} 未知配置 ${cfg}`);
+        if(!(img in imgCount)) errors.push(`${seq} Trial${i+1} 未知图片 ${img}`);
+        if(CONFIGS[cfg]) cfgCount[cfg]++;
+        if(img in imgCount) imgCount[img]++;
+        const meta=imageMeta(img);
+        if(CONFIGS[cfg]) cfgRisk[cfg][meta.risk]++;
+        const pair=`${img}|${cfg}`;
+        if(globalPairs.has(pair)) errors.push(`跨Sequence重复配对 ${pair}`);
+        globalPairs.add(pair);
+        if(i>0){
+          const [prevImg,prevCfg]=rows[i-1];
+          if(imageMeta(prevImg).sceneId===meta.sceneId) errors.push(`${seq} Trial${i}/${i+1} 场景连续`);
+          if(prevCfg===cfg) errors.push(`${seq} Trial${i}/${i+1} 配置连续`);
+        }
+      });
+      codes.forEach(c=>{
+        if(cfgCount[c]!==4) errors.push(`${seq} ${c} 总次数=${cfgCount[c]}`);
+        if(cfgRisk[c].High!==2 || cfgRisk[c].Low!==2) errors.push(`${seq} ${c} 风险次数 H${cfgRisk[c].High}/L${cfgRisk[c].Low}`);
+      });
+      images.forEach(img=>{ if(imgCount[img]!==2) errors.push(`${seq} ${img} 次数=${imgCount[img]}`); });
+    });
+
+    if(globalPairs.size!==72) errors.push(`全局 Image×Config 唯一配对数=${globalPairs.size}，应为72`);
+    if(errors.length) throw new Error('Sequence校验失败：'+errors.join('；'));
+  }
+  validateSequenceTemplates();
+
+  function buildFormalTrials(){
+    const template=SEQUENCE_TEMPLATES[sequenceName];
+    return template.map(([image,configCode],i)=>{
+      const meta=imageMeta(image);
+      const scene=SCENES[meta.sceneId];
+      const config=CONFIGS[configCode];
+      return {
+        formalOrder:i+1,
+        block:i<12?1:2,
+        blockPosition:(i%12)+1,
+        image,
+        sceneId:meta.sceneId,
+        sceneName:scene.name,
+        risk:meta.risk,
+        config,
+        manipulationText:config.text
+      };
+    });
+  }
+
+  /* =========================================================
+     5. 图片后台滚动预加载（3并发）
+     ========================================================= */
+  const SCENE_PRELOAD_CONCURRENCY=3;
+  const scenePreloader=(()=>{
+    let queue=[];
+    let active=0;
+    let running=false;
+    const loaded=new Set();
+    const loading=new Set();
+    const queued=new Set();
+    const failed=new Map();
+    const waiters=new Map();
+
+    function norm(file){
+      const clean=String(file||'').replace(/^\.\.\/risk_img\//,'').replace(/^risk_img\//,'').replace(/[^A-Za-z0-9_.-]/g,'');
+      return `${ASSET_BASE}${clean}`;
+    }
+    function loadedCount(){ return loaded.size; }
+    function isLoaded(file){ return loaded.has(norm(file)); }
+    function notifySuccess(file){
+      const list=waiters.get(file)||[]; waiters.delete(file);
+      list.forEach(w=>{try{w.ok();}catch(e){console.error(e);}});
+    }
+    function notifyFailure(file,error){
+      const list=waiters.get(file)||[]; waiters.delete(file);
+      list.forEach(w=>{try{if(w.fail)w.fail(error);}catch(e){console.error(e);}});
+    }
+    function enqueue(files,front=false){
+      const fresh=[];
+      files.forEach(raw=>{
+        const file=norm(raw);
+        if(loaded.has(file)||loading.has(file)||queued.has(file)) return;
+        queued.add(file); fresh.push(file);
+      });
+      queue=front?fresh.concat(queue):queue.concat(fresh);
+      if(running) pump();
+    }
+    function prioritize(file){
+      file=norm(file);
+      if(loaded.has(file)||loading.has(file)) return;
+      queue=queue.filter(x=>x!==file);
+      queued.delete(file); queued.add(file); queue.unshift(file);
+      if(running) pump();
+    }
+    function whenLoaded(file,ok,fail){
+      file=norm(file);
+      if(loaded.has(file)){ setTimeout(ok,0); return; }
+      if(!waiters.has(file)) waiters.set(file,[]);
+      waiters.get(file).push({ok,fail}); prioritize(file);
+    }
+    function markLoaded(file){
+      file=norm(file);
+      if(loaded.has(file)) return;
+      loaded.add(file); loading.delete(file); queued.delete(file); failed.delete(file); notifySuccess(file);
+    }
+    function launch(file){
+      active++; loading.add(file); queued.delete(file);
+      jsPsych.pluginAPI.preloadImages(
+        [file],
+        function(){ active--; loading.delete(file); loaded.add(file); failed.delete(file); notifySuccess(file); pump(); },
+        function(){},
+        function(errorInfo){
+          active--; loading.delete(file);
+          const tries=(failed.get(file)||0)+1; failed.set(file,tries);
+          console.warn('[scene preload] error',file,errorInfo,'try',tries);
+          if(tries<=2){
+            setTimeout(()=>{ if(!loaded.has(file)&&!loading.has(file)){ queued.add(file); queue.push(file); pump(); } },1500);
+          }else{ notifyFailure(file,errorInfo); pump(); }
+        }
+      );
+    }
+    function pump(){
+      if(!running) return;
+      while(active<SCENE_PRELOAD_CONCURRENCY && queue.length>0){
+        const file=queue.shift();
+        if(loaded.has(file)||loading.has(file)){ queued.delete(file); continue; }
+        launch(file);
+      }
+    }
+    function start(files){ running=true; enqueue(files,false); pump(); }
+    return {start,enqueue,prioritize,whenLoaded,markLoaded,isLoaded,loadedCount,normalize:norm};
+  })();
+
+  /* 页面打开后立即预热机器人、练习图及12张正式风险图。 */
+  const ALL_FORMAL_IMAGES=[];
+  ['high','low'].forEach(r=>{ for(let i=1;i<=6;i++) ALL_FORMAL_IMAGES.push(`${r}${i}.webp`); });
+  scenePreloader.start(['robot.webp','test.webp',...ALL_FORMAL_IMAGES]);
+
+  /* =========================================================
+     6. UI辅助函数
+     ========================================================= */
+  function avatarHTML(){
+    return `<div class="avatar-box">
+      <img src="${ROBOT_IMAGE}" alt="智驾助手头像" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+      <div class="avatar-fallback">🤖</div>
+    </div>`;
+  }
+  function makeEnergyBars(level){
+    return `<div class="energy-bars">${[1,2].map(i=>`<span class="energy-cell emotion ${i<=level?'on':''}"></span>`).join('')}</div>`;
+  }
+  function renderStatusGrid(config){
+    const rows=[
+      ['觉察功能',config.awareness],
+      ['共情功能',config.empathy],
+      ['调节功能',config.regulation]
+    ];
+    return `<div class="status-grid">${rows.map(([label,level])=>`
+      <div class="dim-state">
+        <div class="dim-state-label">${label}</div>
+        ${makeEnergyBars(level)}
+      </div>`).join('')}</div>`;
+  }
+  function formatManipulationText(text){
+    // 固定按“觉察→共情→调节”拆成三行。
+    // 去掉句末标点后统一补句号，保证每一项都是独立完整的一行。
+    const parts=String(text||'')
+      .split('；')
+      .map(s=>s.trim().replace(/[。；]+$/g,''))
+      .filter(Boolean);
+    return `<div class="function-description-lines">${parts.map(part=>
+      `<div class="function-description-line">${part}。</div>`
+    ).join('')}</div>`;
+  }
+  function renderAssistantInfo(trialData,isFormal=true){
+    return `<div class="assistant-info-card">
+      <div class="assistant-badge">${isFormal?'当前智驾助手':'练习｜当前智驾助手'}</div>
+      <div class="assistant-info-main three-dim">
+        <div class="assistant-avatar-col">${avatarHTML()}</div>
+        ${renderStatusGrid(trialData.config)}
+        <div class="assistant-prompt-wrap">
+          <div class="function-description">
+            <div class="function-description-title">功能说明</div>
+            ${formatManipulationText(trialData.manipulationText)}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
+  function renderSceneImage(imageName){
+    const safeName=String(imageName||'').replace(/[^A-Za-z0-9_.-]/g,'');
+    const src=`${ASSET_BASE}${safeName}`;
+    return `<div class="scene-image-frame">
+      <div id="scene-load-hint" class="scene-load-hint">正在准备当前驾驶场景，请稍候…</div>
+      <img id="scene-image" class="scene-image" data-src="${src}" alt="驾驶场景" decoding="async">
+    </div>`;
+  }
+
+  /* =========================================================
+     7. timeline节点
+     ========================================================= */
+  function createWelcomeNode(){
+    return {
+      type:jsPsychHtmlKeyboardResponse,
+      choices:'NO_KEYS',
+      stimulus:`<div class="fullscreen-container">
+        <div class="guide-box">
+          <div class="guide-title">欢迎参加智驾乘车体验</div>
+          <div class="context-box">请想象您是一名乘客，正坐在一辆<span class="highlight">无人智驾车辆的后排</span>。在接下来的体验中，您将通过<span class="highlight">前排平板屏幕</span>了解当前道路场景以及智驾助手提供的信息，并根据自己的真实感受完成评价。</div>
+          在本次体验之前，会逐步介绍智驾助手的功能及操作方式。请认真阅读。<br><br>
+          <b>本次体验包含五个环节：</b><br>
+          ① 完成<span class="highlight">点数分配任务</span>；<br>
+          ② 了解<span class="highlight">三项智驾功能</span>；<br>
+          ③ 了解<span class="highlight">能量格</span>；<br>
+          ④ 完成练习环节；<br>
+          ⑤ 进行正式的驾驶体验。
+        </div>
+        <div style="margin-top:22px;"><button id="welcome-next" class="continue-btn">开始实验</button></div>
+      </div>`,
+      data:{Event_Type:'Welcome'},
+      on_load:()=>document.getElementById('welcome-next').addEventListener('click',()=>jsPsych.finishTrial())
+    };
+  }
+
+  function createAllocationNode(){
+    return {
+      type:jsPsychHtmlKeyboardResponse,
+      choices:'NO_KEYS',
+      stimulus:`<div class="fullscreen-container">
+        <div class="guide-box" style="width:min(900px,90vw);">
+          <div class="guide-title">点数分配任务</div>
+          <div class="context-box">现在有一款智驾助手，它包括<span class="ability-text">能力属性</span>和<span class="emotion-text">情感属性</span>两类主要属性。目前，这两类属性处于相同的基本水平。为了进一步提升驾驶体验，您现在拥有一次升级机会，可以为两类属性分配 <span class="highlight">10 个额外升级点</span>。请按照自己的偏好决定如何分配。</div>
+          <div style="text-align:center;color:#ffcf8a;font-size:16px;font-weight:bold;line-height:1.55;margin-bottom:8px;">本任务只用于了解您对两类功能的个人偏好，不会影响后续体验。</div>
+          <div style="text-align:center;color:var(--muted);font-size:16px;line-height:1.55;">两类属性都至少保留1点；点击任一属性的“＋/−”进行调整，<span class="highlight">两边加起来始终为10点</span>。</div>
+          <div class="allocation-wrap">
+            <div class="allocation-card ability">
+              <div style="font-size:22px;font-weight:900;color:var(--green);">能力属性</div>
+              <div id="ability-score" class="allocation-score" style="color:var(--green);">5</div>
+              <div class="allocation-controls"><button id="ability-minus" class="mini-btn">−</button><button id="ability-plus" class="mini-btn">＋</button></div>
+            </div>
+            <div class="allocation-card emotion">
+              <div style="font-size:22px;font-weight:900;color:var(--orange);">情感属性</div>
+              <div id="emotion-score" class="allocation-score" style="color:var(--orange);">5</div>
+              <div class="allocation-controls"><button id="emotion-minus" class="mini-btn">−</button><button id="emotion-plus" class="mini-btn">＋</button></div>
+            </div>
+          </div>
+          <div style="text-align:center;"><button id="allocation-submit" class="action-btn">确认分配</button></div>
+        </div>
+      </div>`,
+      data:{Event_Type:'Baseline_Allocation'},
+      on_load:function(){
+        let a=5,e=5;
+        const am=document.getElementById('ability-minus');
+        const ap=document.getElementById('ability-plus');
+        const em=document.getElementById('emotion-minus');
+        const ep=document.getElementById('emotion-plus');
+        const render=()=>{
+          document.getElementById('ability-score').innerText=a;
+          document.getElementById('emotion-score').innerText=e;
+          am.disabled=a<=1; ap.disabled=a>=9; em.disabled=e<=1; ep.disabled=e>=9;
+        };
+        am.addEventListener('click',()=>{if(a>1&&e<9){a--;e++;render();}});
+        ap.addEventListener('click',()=>{if(a<9&&e>1){a++;e--;render();}});
+        em.addEventListener('click',()=>{if(e>1&&a<9){e--;a++;render();}});
+        ep.addEventListener('click',()=>{if(e<9&&a>1){e++;a--;render();}});
+        render();
+        document.getElementById('allocation-submit').addEventListener('click',()=>{
+          baselineAbility=a; baselineEmotion=e;
+          jsPsych.finishTrial({Baseline_Ability_Points:a,Baseline_Emotion_Points:e});
+        });
+      }
+    };
+  }
+
+  function createConceptLearningNode(){
+    return {
+      type:jsPsychHtmlKeyboardResponse,
+      choices:'NO_KEYS',
+      stimulus:`<div class="fullscreen-container" style="justify-content:flex-start;">
+        <div class="guide-title">了解“情感属性”</div>
+        <div class="concept-intro">智驾助手的<span class="highlight">情感属性</span>主要包括<span class="highlight">觉察功能、共情功能和调节功能</span>。</div>
+        <div class="concept-cards">
+          <div class="concept-card"><h3>觉察功能：发现情绪变化</h3><p>通过表情、语音等信息，及时察觉您的紧张、焦虑、疲惫等情绪变化。</p></div>
+          <div class="concept-card"><h3>共情功能：理解并回应感受</h3><p>理解您当前的感受，并通过适当的语言表达理解、关心和回应。</p></div>
+          <div class="concept-card"><h3>调节功能：主动帮助平复情绪</h3><p>根据您的当前状态，主动进行安抚或采取相应措施，帮助您平复情绪。</p></div>
+        </div>
+        <div class="quiz-section">
+          <b>理解测验：</b>“系统发现您有些紧张后，主动减少语音打扰，并通过安抚帮助您逐渐平静下来。”这主要体现了哪项功能？
+          <div class="quiz-options">
+            <button class="quiz-option" data-answer="1">1　觉察功能</button>
+            <button class="quiz-option" data-answer="2">2　共情功能</button>
+            <button class="quiz-option" data-answer="3">3　调节功能</button>
+          </div>
+          <div id="concept-feedback" class="quiz-feedback">请选择一个答案。</div>
+          <div style="text-align:center;"><button id="concept-continue" class="continue-btn" disabled>继续</button></div>
+        </div>
+      </div>`,
+      data:{Event_Type:'Concept_Emotion'},
+      on_load:function(){
+        let attempts=0;
+        document.querySelectorAll('.quiz-option').forEach(btn=>{
+          btn.addEventListener('click',function(){
+            attempts++;
+            document.querySelectorAll('.quiz-option').forEach(x=>x.classList.remove('selected','correct','wrong'));
+            this.classList.add('selected');
+            const correct=this.dataset.answer==='3';
+            this.classList.add(correct?'correct':'wrong');
+            const fb=document.getElementById('concept-feedback');
+            fb.style.color=correct?'var(--green)':'var(--warning)';
+            fb.innerText=correct?'回答正确：这里不仅识别了情绪，还进一步采取了帮助您平复情绪的具体措施。':'请再想一想：题目强调的是系统已经进一步采取了具体行动。';
+            document.getElementById('concept-continue').disabled=!correct;
+          });
+        });
+        document.getElementById('concept-continue').addEventListener('click',()=>{
+          conceptQuizAttempts=attempts;
+          jsPsych.finishTrial({Concept_Quiz_Attempts:attempts,Concept_Quiz_Correct:1});
+        });
+      }
+    };
+  }
+
+  function createEnergyLearningNode(){
+    return {
+      type:jsPsychHtmlKeyboardResponse,
+      choices:'NO_KEYS',
+      stimulus:`<div class="fullscreen-container" style="justify-content:flex-start;">
+        <div class="guide-title">了解“能量格”</div>
+        <div class="energy-learning-box">
+          <div style="text-align:center;line-height:1.65;color:#e5e5e5;">正式体验中，智驾助手的三项功能会同时通过<span class="highlight">能量格</span>呈现。</div>
+          <div class="level-examples">
+            <div class="level-example">${makeEnergyBars(1)}<span>低水平</span></div>
+            <div class="level-example">${makeEnergyBars(2)}<span>高水平</span></div>
+          </div>
+        </div>
+        <div class="example-card">
+          <div class="example-label">示例</div>
+          <div class="energy-example-main">
+            <div class="energy-example-avatar">${avatarHTML()}</div>
+            <div class="example-status-grid">
+              <div class="example-status-row"><div class="example-status-name">觉察功能</div>${makeEnergyBars(2)}</div>
+              <div class="example-status-row"><div class="example-status-name">共情功能</div>${makeEnergyBars(1)}</div>
+              <div class="example-status-row"><div class="example-status-name">调节功能</div>${makeEnergyBars(2)}</div>
+            </div>
+          </div>
+        </div>
+        <div class="quiz-section">
+          <b>识别测验：</b>当前哪一项功能处于低水平？
+          <div class="quiz-options">
+            <button class="quiz-option" data-answer="1">1　觉察功能</button>
+            <button class="quiz-option" data-answer="2">2　共情功能</button>
+            <button class="quiz-option" data-answer="3">3　调节功能</button>
+          </div>
+          <div id="energy-feedback" class="quiz-feedback">请选择一个答案。</div>
+          <div style="text-align:center;"><button id="energy-continue" class="continue-btn" disabled>继续</button></div>
+        </div>
+      </div>`,
+      data:{Event_Type:'Energy_Learning'},
+      on_load:function(){
+        let attempts=0;
+        document.querySelectorAll('.quiz-option').forEach(btn=>{
+          btn.addEventListener('click',function(){
+            attempts++;
+            document.querySelectorAll('.quiz-option').forEach(x=>x.classList.remove('selected','correct','wrong'));
+            this.classList.add('selected');
+            const correct=this.dataset.answer==='2';
+            this.classList.add(correct?'correct':'wrong');
+            const fb=document.getElementById('energy-feedback');
+            fb.style.color=correct?'var(--green)':'var(--warning)';
+            fb.innerText=correct?'回答正确。正式体验中请按照相同方式查看当前助手的三项功能。':'请再看一下：1格亮起表示低水平，2格亮起表示高水平。';
+            document.getElementById('energy-continue').disabled=!correct;
+          });
+        });
+        document.getElementById('energy-continue').addEventListener('click',()=>{
+          energyQuizAttempts=attempts;
+          jsPsych.finishTrial({Energy_Quiz_Attempts:attempts,Energy_Quiz_Correct:1});
+        });
+      }
+    };
+  }
+
+  function createPracticeInstructionNode(){
+    return {
+      type:jsPsychHtmlKeyboardResponse,
+      choices:'NO_KEYS',
+      stimulus:`<div class="fullscreen-container">
+        <div class="guide-box">
+          <div class="guide-title">先熟悉一下操作</div>
+          <div class="context-box">接下来的练习页面与正式体验的<span class="highlight">排版和操作方式完全一致</span>。练习只用于帮助您熟悉页面和操作，<span class="highlight">不会计入正式实验结果</span>。</div>
+          每次体验中，请依次查看当前<span class="highlight">道路场景</span>、智驾助手<span class="highlight">三项功能对应的能量格</span>和<span class="highlight">功能说明</span>，随后根据当前信息<span class="highlight">完成评价题</span>。<br><br>
+          每道题均采用1—5分评价。请先点击数字选择答案，再点击<span class="highlight">“确认并继续”</span>进入下一题。
+        </div>
+        <div style="margin-top:20px;"><button id="practice-start" class="continue-btn">开始练习</button></div>
+      </div>`,
+      data:{Event_Type:'Practice_Instruction'},
+      on_load:()=>document.getElementById('practice-start').addEventListener('click',()=>jsPsych.finishTrial())
+    };
+  }
+
+  function createFormalInstructionNode(){
+    return {
+      type:jsPsychHtmlKeyboardResponse,
+      choices:'NO_KEYS',
+      stimulus:`<div class="fullscreen-container">
+        <div class="guide-box">
+          <div class="guide-title">正式体验即将开始</div>
+          <div class="context-box">请继续想象您是一名乘客，正坐在一辆<span class="highlight">无人智驾车辆的后排</span>。您将通过<span class="highlight">前排平板屏幕</span>了解当前道路场景和智驾助手提供的信息。<br><br><span class="highlight">每个道路场景都是一次独立的乘车体验。</span><br>请只根据<span class="highlight">当前页面</span>呈现的道路场景、助手功能和功能说明进行判断，<span class="highlight">不要沿用上一场体验中的印象</span>。<br><br>正式体验分为两个部分，中间可以短暂休息。</div>
+          <div style="background:var(--panel-deep);border:1px solid var(--line);border-radius:9px;padding:15px 19px;line-height:1.75;">
+            <div style="margin-bottom:7px;">① 查看当前<span class="highlight">道路场景</span>；</div>
+            <div style="margin-bottom:7px;">② 查看当前智驾助手<span class="highlight">三项功能对应的能量格</span>；</div>
+            <div style="margin-bottom:7px;">③ 阅读当前智驾助手的<span class="highlight">功能说明</span>；</div>
+            <div style="margin-bottom:7px;">④ 综合当前信息，<span class="highlight">完成主观评分</span>；</div>
+            <div>⑤ 部分道路场景会再次出现，但每次对应的<span class="highlight">助手功能组合可能不同</span>，请始终按照<span class="highlight">当前信息独立作答</span>。</div>
+          </div>
+        </div>
+        <div style="margin-top:20px;"><button id="formal-start" class="continue-btn">开始正式体验</button></div>
+      </div>`,
+      data:{Event_Type:'Formal_Instruction'},
+      on_load:function(){
+        document.getElementById('formal-start').addEventListener('click',()=>{
+          if(formalStartedAtMs===null) formalStartedAtMs=Date.now();
+          jsPsych.finishTrial();
+        });
+      }
+    };
+  }
+
+  function createRestNode(){
+    return {
+      type:jsPsychHtmlKeyboardResponse,
+      choices:'NO_KEYS',
+      stimulus:`<div class="fullscreen-container">
+        <div class="guide-box" style="text-align:center;max-width:760px;">
+          <div class="guide-title">中途休息</div>
+          <p style="line-height:1.8;color:#ddd;">您已经完成了一半的正式体验，可以稍作休息。准备好后再继续。</p>
+          <p style="line-height:1.8;color:#ffcf8a;font-weight:800;">后续体验的操作方式保持不变。请继续将每个道路场景视为一次独立的乘车体验，并根据当前页面的信息重新判断。</p>
+          <button id="rest-continue" class="continue-btn">继续正式体验</button>
+        </div>
+      </div>`,
+      data:{Event_Type:'Rest_Break'},
+      on_load:()=>document.getElementById('rest-continue').addEventListener('click',()=>jsPsych.finishTrial())
+    };
+  }
+
+  function createRatingTrialNode(trialData,isFormal=true){
+    const questions=[
+      '我认为这款智驾助手是友好的。',
+      '我完全信任这款智驾助手。',
+      '在当前路况下，我愿意选择这款智驾助手完成这段行程。'
+    ];
+    const buttons=[1,2,3,4,5].map(n=>`<button class="rating-option" data-score="${n}" disabled>${n}</button>`).join('');
+
+    return {
+      type:jsPsychHtmlKeyboardResponse,
+      choices:'NO_KEYS',
+      stimulus:`<div class="trial-shell">
+        <div class="trial-header">
+          <span>${isFormal?`正式体验 ${trialData.formalOrder} / 24`:'练习体验'}</span>
+          <span>${isFormal?'请根据当前信息独立判断':'练习不计入正式结果'}</span>
+        </div>
+        <div class="scene-zone">${renderSceneImage(trialData.image)}</div>
+        <div class="assistant-zone">${renderAssistantInfo(trialData,isFormal)}</div>
+        <div class="rating-zone">
+          <div class="rating-topline">
+            <div id="rating-progress" class="rating-progress">第 1 题 / 共 3 题</div>
+            <button id="rating-back" class="rating-back hidden-visibility" type="button">返回上一题</button>
+          </div>
+          <div id="rating-question" class="rating-question">${questions[0]}</div>
+          <div class="rating-options">${buttons}</div>
+          <div class="rating-anchors"><span>1 非常不赞同</span><span>3 一般</span><span>5 非常赞同</span></div>
+          <button id="rating-confirm" class="rating-confirm" disabled>确认并继续</button>
+        </div>
+      </div>`,
+      data:{Event_Type:isFormal?'Formal_Trial':'Practice_Trial'},
+      on_load:function(){
+        let phase=0;
+        const drafts=[null,null,null];
+        const scores=[null,null,null];
+        const rts=[null,null,null];
+        let backCount=0;
+        let totalStart=null;
+        let phaseStart=null;
+
+        const shell=document.querySelector('.trial-shell');
+        const q=document.getElementById('rating-question');
+        const progress=document.getElementById('rating-progress');
+        const back=document.getElementById('rating-back');
+        const confirm=document.getElementById('rating-confirm');
+        const options=Array.from(document.querySelectorAll('.rating-option'));
+        const sceneImg=document.getElementById('scene-image');
+        const sceneHint=document.getElementById('scene-load-hint');
+        const imagePath=sceneImg?sceneImg.dataset.src:`${ASSET_BASE}${trialData.image}`;
+        let sceneReady=false;
+        let resizeObserver=null;
+
+        function elementIsClipped(el){
+          if(!el) return false;
+          return (el.scrollHeight-el.clientHeight>2)||(el.scrollWidth-el.clientWidth>2);
+        }
+        function enableAdaptiveLayoutIfNeeded(){
+          if(!shell || shell.classList.contains('adaptive-scroll')) return;
+          const viewportH=window.visualViewport?window.visualViewport.height:window.innerHeight;
+          const clipped=Array.from(shell.children).some(elementIsClipped) || elementIsClipped(q);
+          if(clipped || shell.scrollHeight>viewportH+3) shell.classList.add('adaptive-scroll');
+        }
+        requestAnimationFrame(()=>requestAnimationFrame(enableAdaptiveLayoutIfNeeded));
+        if('ResizeObserver' in window && shell){
+          resizeObserver=new ResizeObserver(enableAdaptiveLayoutIfNeeded);
+          resizeObserver.observe(shell);
+          Array.from(shell.children).forEach(x=>resizeObserver.observe(x));
+        }
+
+        function enableRatingsAfterImage(){
+          if(sceneReady) return;
+          sceneReady=true;
+          totalStart=Date.now();
+          phaseStart=totalStart;
+          scenePreloader.markLoaded(imagePath);
+          if(sceneHint) sceneHint.style.display='none';
+          options.forEach(btn=>btn.disabled=false);
+          requestAnimationFrame(enableAdaptiveLayoutIfNeeded);
+        }
+        function showImageError(error){
+          sceneReady=false;
+          options.forEach(btn=>btn.disabled=true);
+          confirm.disabled=true;
+          if(sceneHint){
+            sceneHint.style.display='flex';
+            sceneHint.style.color='var(--warning)';
+            sceneHint.innerText='当前驾驶场景暂未加载成功，正在重试…';
+          }
+          console.error('trial image load error',imagePath,error);
+          setTimeout(requestCurrentImage,1800);
+        }
+        function attachActualImage(){
+          if(!sceneImg || sceneReady) return;
+          sceneImg.addEventListener('load',enableRatingsAfterImage,{once:true});
+          sceneImg.addEventListener('error',showImageError,{once:true});
+          sceneImg.src=imagePath;
+          if(sceneImg.complete && sceneImg.naturalWidth>0) enableRatingsAfterImage();
+        }
+        function requestCurrentImage(){
+          if(!sceneImg || sceneReady) return;
+          if(scenePreloader.isLoaded(imagePath)){ attachActualImage(); return; }
+          if(sceneHint){ sceneHint.style.display='flex'; sceneHint.innerText='正在准备当前驾驶场景，请稍候…'; }
+          scenePreloader.whenLoaded(imagePath,attachActualImage,attachActualImage);
+        }
+        requestCurrentImage();
+
+        function setSelected(score){
+          options.forEach(btn=>btn.classList.toggle('selected',Number(btn.dataset.score)===score));
+          confirm.disabled=score===null;
+        }
+        function renderPhase(){
+          q.innerText=questions[phase];
+          progress.innerText=`第 ${phase+1} 题 / 共 3 题`;
+          back.classList.toggle('hidden-visibility',phase===0);
+          phaseStart=Date.now();
+          setSelected(drafts[phase]);
+          requestAnimationFrame(enableAdaptiveLayoutIfNeeded);
+        }
+
+        options.forEach(btn=>btn.addEventListener('click',()=>{
+          drafts[phase]=Number(btn.dataset.score);
+          setSelected(drafts[phase]);
+        }));
+
+        back.addEventListener('click',()=>{
+          if(phase===0) return;
+          const newPhase=phase-1;
+          for(let i=newPhase+1;i<3;i++){
+            drafts[i]=null; scores[i]=null; rts[i]=null;
+          }
+          phase=newPhase;
+          backCount++;
+          renderPhase();
+        });
+
+        confirm.addEventListener('click',()=>{
+          if(drafts[phase]===null) return;
+          scores[phase]=drafts[phase];
+          rts[phase]=Date.now()-phaseStart;
+          if(phase<2){
+            phase++;
+            renderPhase();
+            return;
+          }
+
+          if(resizeObserver) resizeObserver.disconnect();
+          const imageBase=String(trialData.image||'').replace(/\.[^.]+$/,'');
+          const imageNumber=(String(trialData.image||'').match(/(\d+)/)||[])[1]||'';
+
+          jsPsych.finishTrial({
+            Event_Type:isFormal?'Formal_Trial':'Practice_Trial',
+            Subject_ID:currentSubjectId,
+            Study_ID:STUDY_ID,
+            Study_Path:studyPath,
+            Session_UUID:sessionUUID,
+            Age_Group:AGE_GROUP,
+            DataPipe_Condition:dataPipeCondition,
+            Version:currentVersion,
+            Sequence:sequenceName,
+            Formal_Trial_Order:isFormal?trialData.formalOrder:0,
+            Block:isFormal?trialData.block:0,
+            Block_Position:isFormal?trialData.blockPosition:0,
+            Image_Number:imageNumber,
+            Image_ID:imageBase,
+            Image_File:trialData.image,
+            Scene_ID:trialData.sceneId,
+            Scene_Name:trialData.sceneName,
+            Risk_Level:isFormal?trialData.risk:'Practice',
+            Config_Code:trialData.config.code,
+            Config_Name_CN:trialData.config.name,
+            Awareness_Level:trialData.config.awareness===2?'High':'Low',
+            Empathy_Level:trialData.config.empathy===2?'High':'Low',
+            Regulation_Level:trialData.config.regulation===2?'High':'Low',
+            Manipulation_Text:trialData.manipulationText,
+            Warmth_Score:scores[0],
+            Warmth_RT_ms:rts[0],
+            Trust_Score:scores[1],
+            Trust_RT_ms:rts[1],
+            Cooperation_Score:scores[2],
+            Cooperation_RT_ms:rts[2],
+            Back_Count:backCount,
+            Total_Trial_Time_ms:totalStart===null?null:Date.now()-totalStart,
+            Baseline_Ability_Points:baselineAbility,
+            Baseline_Emotion_Points:baselineEmotion,
+            Concept_Quiz_Attempts:conceptQuizAttempts,
+            Energy_Quiz_Attempts:energyQuizAttempts,
+            Browser_Context:getBrowserContext(),
+            User_Agent:navigator.userAgent||'',
+            Image_Format:IMAGE_FORMAT
+          });
+        });
+      }
+    };
+  }
+
+  /* =========================================================
+     8. 主编号 / Study Path / 启动
+     ========================================================= */
+  function safeTextParam(value,maxLen=50){
+    const v=String(value||'').trim();
+    return /^[A-Za-z0-9_-]+$/.test(v) && v.length<=maxLen ? v : '';
+  }
+  function getContextFromURL(){
+    const params=new URLSearchParams(window.location.search);
+    return {
+      pid:safeTextParam(params.get('pid'),30),
+      path:safeTextParam(params.get('path'),30)
+    };
+  }
+  function applyParticipantContext(){
+    const fromURL=getContextFromURL();
+    const storedPid=safeTextParam(localStorage.getItem(MASTER_PID_KEY),30);
+    const storedPath=safeTextParam(localStorage.getItem(STUDY_PATH_KEY),30);
+    const pid=fromURL.pid || storedPid;
+    // 正式串联时优先采用URL中的path；独立测试2b时不继承其他实验留下的Study_Path。
+    studyPath=fromURL.path || (storedPath===DEFAULT_STUDY_PATH ? storedPath : DEFAULT_STUDY_PATH);
+
+    if(pid){
+      localStorage.setItem(MASTER_PID_KEY,pid);
+      const input=document.getElementById('subject-id-input');
+      if(input){ input.value=pid; input.readOnly=true; input.style.opacity='0.92'; }
+      const info=document.getElementById('login-info');
+      if(info) info.innerHTML=`已识别同一参与者的匿名实验编号：<b style="color:#fff;">${pid}</b><br><span style="font-size:13px;color:#8f9aa5;">请确认后点击“进入体验”。</span>`;
+    }
+    localStorage.setItem(STUDY_PATH_KEY,studyPath);
+  }
+  applyParticipantContext();
+
+  document.getElementById('login-btn').addEventListener('click',startExperiment);
+
+  async function startExperiment(){
+    const inputVal=document.getElementById('subject-id-input').value.trim();
+    if(!inputVal || !/^[A-Za-z0-9_-]{1,30}$/.test(inputVal)){
+      alert('请输入有效的匿名实验编号（仅使用字母、数字、下划线或短横线）。');
+      return;
+    }
+    currentSubjectId=inputVal;
+    localStorage.setItem(MASTER_PID_KEY,currentSubjectId);
+    localStorage.setItem(STUDY_PATH_KEY,studyPath);
+
+    const startButton=document.getElementById('login-btn');
+    const originalButtonText=startButton.innerText;
+    startButton.disabled=true;
+    startButton.innerText='正在连接实验服务器…';
+
+    try{
+      dataPipeCondition=await getDataPipeCondition();
+    }catch(error){
+      console.error(error);
+      startButton.disabled=false;
+      startButton.innerText=originalButtonText;
+      if(DATAPIPE_REQUIRED){
+        alert('暂时无法连接实验服务器或获取实验条件，请检查网络后重试。\n\n'+(error.message||error));
+        return;
+      }
+      dataPipeCondition=0;
+    }
+
+    sequenceName=['A','B','C'][dataPipeCondition];
+    currentVersion=`Exp2b_Adult_DP${dataPipeCondition}_Seq${sequenceName}`;
+
+    jsPsych.data.addProperties({
+      Subject_ID:currentSubjectId,
+      Study_ID:STUDY_ID,
+      Study_Path:studyPath,
+      Session_UUID:sessionUUID,
+      Age_Group:AGE_GROUP,
+      DataPipe_Condition:dataPipeCondition,
+      Version:currentVersion,
+      Sequence:sequenceName,
+      Browser_Context:getBrowserContext(),
+      User_Agent:navigator.userAgent||'',
+      Image_Format:IMAGE_FORMAT
+    });
+
+    experimentStartedAtMs=Date.now();
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('jspsych-target').innerHTML='';
+
+    const formalTrials=buildFormalTrials();
+    const practiceConfig=CONFIGS.HLH; // 高觉察-低共情-高调节
+    const practiceTrial={
+      image:'test.webp', sceneId:0, sceneName:'练习场景', risk:'Practice',
+      config:practiceConfig,
+      manipulationText:practiceConfig.text
+    };
+
+    const timeline=[];
+    timeline.push(createWelcomeNode());
+    timeline.push(createAllocationNode());
+    timeline.push(createConceptLearningNode());
+    timeline.push(createEnergyLearningNode());
+    timeline.push(createPracticeInstructionNode());
+    timeline.push(createRatingTrialNode(practiceTrial,false));
+    timeline.push(createFormalInstructionNode());
+
+    for(let i=0;i<formalTrials.length;i++){
+      timeline.push(createRatingTrialNode(formalTrials[i],true));
+      if(i===11) timeline.push(createRestNode());
+    }
+
+    jsPsych.run(timeline);
+  }
+
+</script>
+</body>
+</html>
