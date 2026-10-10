@@ -844,48 +844,81 @@
       .example-status-row { grid-template-columns:78px 1fr; gap:7px; }
       .example-status-name { font-size:12px; }
 
-      /* 手机正式trial：头像 + 竖向三行功能能量格在上方；功能说明独占下一行。
-         与电脑端保持同一“感知→预测→执行”阅读顺序，避免横排后视觉结构发生变化。 */
+      /* 手机正式trial：尽量保持与电脑端一致的三栏结构。
+         左：机器人头像；中：感知/预测/执行三行能量格；右：功能说明三行。
+         仅缩小间距与字号，不改变信息结构和阅读顺序。 */
+      .assistant-info-card {
+        width:97vw;
+        padding:7px 7px 8px;
+      }
       .assistant-info-main.three-dim {
-        grid-template-columns:64px minmax(0,1fr);
-        grid-template-areas:
-          'avatar states'
-          'bubble bubble';
-        gap:8px 10px;
+        grid-template-columns:50px 120px minmax(0,1fr);
+        grid-template-areas:'avatar states bubble';
+        column-gap:6px;
+        row-gap:0;
         align-items:center;
       }
-      .assistant-avatar-col { align-self:center; }
-      .assistant-avatar-col .avatar-box { width:56px; height:56px; }
+      .assistant-avatar-col {
+        align-self:center;
+        justify-self:center;
+      }
+      .assistant-avatar-col .avatar-box {
+        width:48px;
+        height:48px;
+        border-radius:8px;
+      }
       .status-grid {
         grid-template-columns:1fr;
-        gap:6px;
-        margin-top:0;
+        gap:7px;
+        margin:0;
         width:100%;
       }
       .dim-state {
         display:grid;
-        grid-template-columns:72px auto;
+        grid-template-columns:54px auto;
         justify-content:start;
         align-items:center;
-        gap:8px;
+        gap:5px;
       }
-      .dim-state-label { font-size:12px; text-align:right; }
-      .status-grid .energy-bars { gap:4px; justify-content:flex-start; }
-      .status-grid .energy-cell { width:28px; height:11px; border-width:1.3px; }
+      .dim-state-label {
+        font-size:10.5px;
+        line-height:1.15;
+        text-align:right;
+      }
+      .status-grid .energy-bars {
+        gap:3px;
+        justify-content:flex-start;
+      }
+      .status-grid .energy-cell {
+        width:22px;
+        height:10px;
+        border-width:1.2px;
+        border-radius:3px;
+      }
       .assistant-info-main.three-dim .assistant-prompt-wrap {
         grid-area:bubble;
         width:100%;
-        align-self:stretch;
+        min-width:0;
+        align-self:center;
       }
-      .function-description { padding:8px 11px 9px; }
-      .function-description-title { font-size:12.5px; margin-bottom:5px; }
-      .function-description-lines { gap:4px; }
-      .function-description-line { font-size:12.5px; line-height:1.3; white-space:nowrap; }
+      .function-description {
+        padding:6px 7px 7px;
+        border-radius:8px;
+      }
+      .function-description-title {
+        font-size:11px;
+        line-height:1.15;
+        margin-bottom:4px;
+      }
+      .function-description-lines { gap:3px; }
+      .function-description-line {
+        font-size:10.5px;
+        line-height:1.25;
+        white-space:nowrap;
+      }
       .assistant-zone { padding-top:5px; padding-bottom:5px; }
-      .assistant-info-card { padding-bottom:7px; }
     }
 
-    @media (max-width:650px){ .assistant-avatar-col .avatar-box{width:54px;height:54px;} }
 
   </style>
 </head>
