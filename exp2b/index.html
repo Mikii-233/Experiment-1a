@@ -956,6 +956,8 @@
 
   const MASTER_PID_KEY = 'master_participant_id_v1';
   const STUDY_PATH_KEY = 'master_study_path_v1';
+  const BASELINE_ABILITY_KEY_PREFIX = 'baseline_ability_points_v1_';
+  const BASELINE_EMOTION_KEY_PREFIX = 'baseline_emotion_points_v1_';
 
   const DATAPIPE_EXPERIMENT_ID = 'l5p7Iid6EsnX';
   const DATAPIPE_REQUIRED = true;
@@ -1479,70 +1481,17 @@
       choices:'NO_KEYS',
       stimulus:`<div class="fullscreen-container">
         <div class="guide-box">
-          <div class="guide-title">欢迎参加智驾乘车体验</div>
-          <div class="context-box">请想象您是一名乘客，正坐在一辆<span class="highlight">无人智驾车辆的后排</span>。在接下来的体验中，您将通过<span class="highlight">前排平板屏幕</span>了解当前道路场景以及智驾助手提供的信息，并根据自己的真实感受完成评价。</div>
-          在本次体验之前，会逐步介绍智驾助手的功能及操作方式。请认真阅读。<br><br>
-          <b>本次体验包含五个环节：</b><br>
-          ① 完成<span class="highlight">点数分配任务</span>；<br>
-          ② 了解<span class="highlight">三项智驾功能</span>；<br>
-          ③ 了解<span class="highlight">能量格</span>；<br>
-          ④ 完成练习环节；<br>
-          ⑤ 进行正式的驾驶体验。
-        </div>
-        <div style="margin-top:22px;"><button id="welcome-next" class="continue-btn">开始实验</button></div>
-      </div>`,
-      data:{Event_Type:'Welcome'},
-      on_load:()=>document.getElementById('welcome-next').addEventListener('click',()=>jsPsych.finishTrial())
-    };
-  }
-
-  function createAllocationNode(){
-    return {
-      type:jsPsychHtmlKeyboardResponse,
-      choices:'NO_KEYS',
-      stimulus:`<div class="fullscreen-container">
-        <div class="guide-box" style="width:min(900px,90vw);">
-          <div class="guide-title">点数分配任务</div>
-          <div class="context-box">现在有一款智驾助手，它包括<span class="ability-text">能力属性</span>和<span class="emotion-text">情感属性</span>两类主要属性。目前，这两类属性处于相同的基本水平。为了进一步提升驾驶体验，您现在拥有一次升级机会，可以为两类属性分配 <span class="highlight">10 个额外升级点</span>。请按照自己的偏好决定如何分配。</div>
-          <div style="text-align:center;color:#ffcf8a;font-size:16px;font-weight:bold;line-height:1.55;margin-bottom:8px;">本任务只用于了解您对两类功能的个人偏好，不会影响后续体验。</div>
-          <div style="text-align:center;color:var(--muted);font-size:16px;line-height:1.55;">两类属性都至少保留1点；点击任一属性的“＋/−”进行调整，<span class="highlight">两边加起来始终为10点</span>。</div>
-          <div class="allocation-wrap">
-            <div class="allocation-card ability">
-              <div style="font-size:22px;font-weight:900;color:var(--green);">能力属性</div>
-              <div id="ability-score" class="allocation-score" style="color:var(--green);">5</div>
-              <div class="allocation-controls"><button id="ability-minus" class="mini-btn">−</button><button id="ability-plus" class="mini-btn">＋</button></div>
-            </div>
-            <div class="allocation-card emotion">
-              <div style="font-size:22px;font-weight:900;color:var(--orange);">情感属性</div>
-              <div id="emotion-score" class="allocation-score" style="color:var(--orange);">5</div>
-              <div class="allocation-controls"><button id="emotion-minus" class="mini-btn">−</button><button id="emotion-plus" class="mini-btn">＋</button></div>
-            </div>
+          <div class="guide-title">第二部分即将开始</div>
+          <div class="context-box">
+            接下来您将继续以<span class="highlight">无人智驾车辆后排乘客</span>的身份完成乘车体验。
           </div>
-          <div style="text-align:center;"><button id="allocation-submit" class="action-btn">确认分配</button></div>
+          在正式体验开始前，您将先了解本部分涉及的<span class="highlight">三项智驾功能</span>及<span class="highlight">能量格</span>的含义，并完成简单的练习。<br><br>
+          请根据页面提示依次完成。
         </div>
+        <div style="margin-top:22px;"><button id="welcome-next" class="continue-btn">开始第二部分</button></div>
       </div>`,
-      data:{Event_Type:'Baseline_Allocation'},
-      on_load:function(){
-        let a=5,e=5;
-        const am=document.getElementById('ability-minus');
-        const ap=document.getElementById('ability-plus');
-        const em=document.getElementById('emotion-minus');
-        const ep=document.getElementById('emotion-plus');
-        const render=()=>{
-          document.getElementById('ability-score').innerText=a;
-          document.getElementById('emotion-score').innerText=e;
-          am.disabled=a<=1; ap.disabled=a>=9; em.disabled=e<=1; ep.disabled=e>=9;
-        };
-        am.addEventListener('click',()=>{if(a>1&&e<9){a--;e++;render();}});
-        ap.addEventListener('click',()=>{if(a<9&&e>1){a++;e--;render();}});
-        em.addEventListener('click',()=>{if(e>1&&a<9){e--;a++;render();}});
-        ep.addEventListener('click',()=>{if(e<9&&a>1){e++;a--;render();}});
-        render();
-        document.getElementById('allocation-submit').addEventListener('click',()=>{
-          baselineAbility=a; baselineEmotion=e;
-          jsPsych.finishTrial({Baseline_Ability_Points:a,Baseline_Emotion_Points:e});
-        });
-      }
+      data:{Event_Type:'Welcome_Second_Part'},
+      on_load:()=>document.getElementById('welcome-next').addEventListener('click',()=>jsPsych.finishTrial())
     };
   }
 
@@ -1916,6 +1865,39 @@
     const v=String(value||'').trim();
     return /^[A-Za-z0-9_-]+$/.test(v) && v.length<=maxLen ? v : '';
   }
+
+  function parseBaselinePoint(value){
+    const n=Number(value);
+    return Number.isInteger(n) && n>=1 && n<=9 ? n : null;
+  }
+
+  function loadInheritedBaseline(pid){
+    const params=new URLSearchParams(window.location.search);
+
+    const urlAbility=parseBaselinePoint(params.get('ba'));
+    const urlEmotion=parseBaselinePoint(params.get('be'));
+
+    // 第一优先级：1A 跳转 URL 直接传入。
+    if(urlAbility!==null && urlEmotion!==null && urlAbility+urlEmotion===10){
+      localStorage.setItem(BASELINE_ABILITY_KEY_PREFIX + pid, String(urlAbility));
+      localStorage.setItem(BASELINE_EMOTION_KEY_PREFIX + pid, String(urlEmotion));
+      return {ability:urlAbility, emotion:urlEmotion, source:'URL'};
+    }
+
+    // 第二优先级：以当前 Master PID 为键读取 1A 保存的本地备份。
+    const storedAbility=parseBaselinePoint(
+      localStorage.getItem(BASELINE_ABILITY_KEY_PREFIX + pid)
+    );
+    const storedEmotion=parseBaselinePoint(
+      localStorage.getItem(BASELINE_EMOTION_KEY_PREFIX + pid)
+    );
+
+    if(storedAbility!==null && storedEmotion!==null && storedAbility+storedEmotion===10){
+      return {ability:storedAbility, emotion:storedEmotion, source:'localStorage'};
+    }
+
+    return null;
+  }
   function getContextFromURL(){
     const params=new URLSearchParams(window.location.search);
     return {
@@ -1926,10 +1908,12 @@
   function applyParticipantContext(){
     const fromURL=getContextFromURL();
     const storedPid=safeTextParam(localStorage.getItem(MASTER_PID_KEY),30);
-    const storedPath=safeTextParam(localStorage.getItem(STUDY_PATH_KEY),30);
     const pid=fromURL.pid || storedPid;
-    // 正式串联时优先采用URL中的path；独立测试2b时不继承其他实验留下的Study_Path。
-    studyPath=fromURL.path || (storedPath===DEFAULT_STUDY_PATH ? storedPath : DEFAULT_STUDY_PATH);
+
+    // 第二部分的路径由当前页面自身决定；只有与本实验匹配的 URL path 才接受。
+    studyPath=fromURL.path==='1A_2B'
+      ? fromURL.path
+      : DEFAULT_STUDY_PATH;
 
     if(pid){
       localStorage.setItem(MASTER_PID_KEY,pid);
@@ -1953,6 +1937,19 @@
     currentSubjectId=inputVal;
     localStorage.setItem(MASTER_PID_KEY,currentSubjectId);
     localStorage.setItem(STUDY_PATH_KEY,studyPath);
+
+    // 2A/2B 不再重复测量点数分配，直接继承同一参与者在 1A 中完成的基线分配。
+    const inheritedBaseline=loadInheritedBaseline(currentSubjectId);
+    if(!inheritedBaseline){
+      alert(
+        '未检测到第一部分的点数分配结果。\n\n'
+        + '请从统一 start 页面完成前测和第一部分后，再进入当前页面。'
+      );
+      return;
+    }
+
+    baselineAbility=inheritedBaseline.ability;
+    baselineEmotion=inheritedBaseline.emotion;
 
     const startButton=document.getElementById('login-btn');
     const originalButtonText=startButton.innerText;
@@ -1979,6 +1976,8 @@
       Subject_ID:currentSubjectId,
       Study_ID:STUDY_ID,
       Study_Path:studyPath,
+      Baseline_Ability_Points:baselineAbility,
+      Baseline_Emotion_Points:baselineEmotion,
       Session_UUID:sessionUUID,
       Age_Group:AGE_GROUP,
       DataPipe_Condition:dataPipeCondition,
@@ -2003,7 +2002,6 @@
 
     const timeline=[];
     timeline.push(createWelcomeNode());
-    timeline.push(createAllocationNode());
     timeline.push(createConceptLearningNode());
     timeline.push(createEnergyLearningNode());
     timeline.push(createPracticeInstructionNode());
