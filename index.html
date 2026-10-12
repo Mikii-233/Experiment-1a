@@ -636,7 +636,7 @@
 
 <script>
   /* =========================================================
-     实验1a 成人版正式版 v1（DataPipe -> Google Drive）
+     实验1a 成人版串联正式版 v2（Master PID + Study_Path + DataPipe -> Google Drive）
      ---------------------------------------------------------
      核心框架：jsPsych
      数据传输：DataPipe -> Google Drive
@@ -647,6 +647,13 @@
 
   const ROBOT_IMAGE = 'robot.webp';
   const PRACTICE_IMAGE = 'test.webp';
+
+  const STUDY_ID = 'Exp1A';
+  const DEFAULT_STUDY_PATH = '1A_2A';
+  const VALID_STUDY_PATHS = new Set(['1A_2A','1A_2B']);
+  const MASTER_PID_KEY = 'master_participant_id_v1';
+  const STUDY_PATH_KEY = 'master_study_path_v1';
+
   const DATAPIPE_EXPERIMENT_ID = '4APLg3eooyUk';
   const DATAPIPE_BASE = 'https://pipe.jspsych.org/api';
   const SEQUENCE_NAME = 'FixedSeq_v1';
@@ -654,6 +661,7 @@
   const AGE_GROUP = 'Adult';
 
   let currentSubjectId = '';
+  let studyPath = DEFAULT_STUDY_PATH;
   const currentVersion = `Exp1a_Adult_${SEQUENCE_NAME}`;
   let baselineAbility = null;
   let baselineEmotion = null;
@@ -686,8 +694,20 @@
     return `${formatLocalTimestamp(new Date())}_Exp1a_Adult_Subject${safeSubject}.csv`;
   }
 
+  function getNextPartURL(){
+    const target = studyPath === '1A_2B'
+      ? 'exp2b/index.html'
+      : 'exp2a/index.html';
+
+    return `${target}?pid=${encodeURIComponent(currentSubjectId)}&path=${encodeURIComponent(studyPath)}`;
+  }
+
+  window.continueToNextPart = function(){
+    location.href = getNextPartURL();
+  };
+
   const CLEAN_CSV_COLUMNS = [
-    'Subject_ID','Session_UUID','Age_Group','Version','Sequence',
+    'Subject_ID','Study_ID','Study_Path','Session_UUID','Age_Group','Version','Sequence',
     'Formal_Trial_Order','Block','Block_Position',
     'Image_Number','Image_ID','Image_File','Scene_ID','Scene_Name',
     'Assistant_Label','Config_Code','Config_Type','Config_Name_CN',
@@ -856,9 +876,15 @@
         document.getElementById('jspsych-target').innerHTML = `
           <div class="fullscreen-container">
             <div class="guide-box" style="text-align:center;max-width:780px;">
-              <div class="guide-title" style="color:var(--green);">✓ 数据提交成功</div>
-              <p style="color:#ddd;line-height:1.8;">${uploadStatusText}<br>本次体验已全部结束，感谢您的参与！现在可以安全关闭此页面。</p>
-              <p style="color:#777;font-size:13px;">数据文件：${upload.filename}</p>
+              <div class="guide-title" style="color:var(--green);">✓ 第一部分数据提交成功</div>
+              <p style="color:#ddd;line-height:1.8;">
+                ${uploadStatusText}<br>
+                <b>第一部分已经完成。</b>您可以稍作休息，准备好后继续下一部分。
+              </p>
+              <button onclick="continueToNextPart()" class="continue-btn" style="margin-top:8px;">
+                继续下一部分
+              </button>
+              <p style="color:#777;font-size:13px;margin-top:18px;">数据文件：${upload.filename}</p>
             </div>
           </div>`;
       }catch(error){
@@ -1655,20 +1681,58 @@
   /* =========================================================
      9. 被试编号与启动
      ========================================================= */
-  function getParticipantIdFromURL(){
+  function safeTextParam(value,maxLen=50){
+    const v=String(value||'').trim();
+    return /^[A-Za-z0-9_-]+$/.test(v) && v.length<=maxLen ? v : '';
+  }
+
+  function getParticipantContext(){
     const params=new URLSearchParams(window.location.search);
-    const pid=(params.get('pid')||'').trim();
-    return /^[A-Za-z0-9_-]{1,30}$/.test(pid)?pid:'';
+
+    const urlPid=safeTextParam(params.get('pid'),30);
+    const urlPath=safeTextParam(params.get('path'),30).toUpperCase();
+
+    // 正式串联时，Study_Path 必须优先服从当前 URL。
+    // 直接测试 1A 时，如无 path，则固定使用 1A_2A，不读取旧批次留下的路线。
+    const resolvedPath=VALID_STUDY_PATHS.has(urlPath)
+      ? urlPath
+      : DEFAULT_STUDY_PATH;
+
+    const storedPid=safeTextParam(localStorage.getItem(MASTER_PID_KEY),30);
+    const resolvedPid=urlPid || storedPid;
+
+    return {
+      pid:resolvedPid,
+      path:resolvedPath
+    };
   }
-  function applyParticipantIdFromURL(){
-    const pid=getParticipantIdFromURL();
-    if(!pid) return;
+
+  function applyParticipantContext(){
+    const context=getParticipantContext();
+
+    studyPath=context.path;
+    localStorage.setItem(STUDY_PATH_KEY,studyPath);
+
+    if(!context.pid) return;
+
+    localStorage.setItem(MASTER_PID_KEY,context.pid);
+
     const input=document.getElementById('subject-id-input');
-    if(input){input.value=pid;input.readOnly=true;input.style.opacity='0.92';}
+    if(input){
+      input.value=context.pid;
+      input.readOnly=true;
+      input.style.opacity='0.92';
+    }
+
     const info=document.getElementById('login-info');
-    if(info) info.innerHTML=`已从前置页面自动识别实验编号：<b style="color:#fff;">${pid}</b><br><span style="font-size:13px;color:#8f9aa5;">请确认后点击“进入体验”。</span>`;
+    if(info){
+      info.innerHTML=
+        `已从前置页面自动识别实验编号：<b style="color:#fff;">${context.pid}</b><br>`
+        + `<span style="font-size:13px;color:#8f9aa5;">请确认后点击“进入体验”。</span>`;
+    }
   }
-  applyParticipantIdFromURL();
+
+  applyParticipantContext();
 
   document.getElementById('login-btn').addEventListener('click',startExperiment);
 
@@ -1679,6 +1743,8 @@
       return;
     }
     currentSubjectId=inputVal;
+    localStorage.setItem(MASTER_PID_KEY,currentSubjectId);
+    localStorage.setItem(STUDY_PATH_KEY,studyPath);
 
     if(!dataPipeConfigured()){
       alert('DataPipe Experiment ID 尚未配置，请联系研究者。');
@@ -1687,6 +1753,8 @@
 
     jsPsych.data.addProperties({
       Subject_ID:currentSubjectId,
+      Study_ID:STUDY_ID,
+      Study_Path:studyPath,
       Session_UUID:sessionUUID,
       Age_Group:AGE_GROUP,
       Version:currentVersion,
