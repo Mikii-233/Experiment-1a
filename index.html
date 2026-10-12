@@ -636,7 +636,7 @@
 
 <script>
   /* =========================================================
-     实验1a 成人版串联正式版 v2（Master PID + Study_Path + DataPipe -> Google Drive）
+     实验1a 成人版串联正式版 v3（Master PID + Study_Path + Baseline Transfer + DataPipe -> Google Drive）
      ---------------------------------------------------------
      核心框架：jsPsych
      数据传输：DataPipe -> Google Drive
@@ -653,6 +653,8 @@
   const VALID_STUDY_PATHS = new Set(['1A_2A','1A_2B']);
   const MASTER_PID_KEY = 'master_participant_id_v1';
   const STUDY_PATH_KEY = 'master_study_path_v1';
+  const BASELINE_ABILITY_KEY_PREFIX = 'baseline_ability_points_v1_';
+  const BASELINE_EMOTION_KEY_PREFIX = 'baseline_emotion_points_v1_';
 
   const DATAPIPE_EXPERIMENT_ID = '4APLg3eooyUk';
   const DATAPIPE_BASE = 'https://pipe.jspsych.org/api';
@@ -699,7 +701,14 @@
       ? 'exp2b/index.html'
       : 'exp2a/index.html';
 
-    return `${target}?pid=${encodeURIComponent(currentSubjectId)}&path=${encodeURIComponent(studyPath)}`;
+    const params = new URLSearchParams({
+      pid: currentSubjectId,
+      path: studyPath,
+      ba: String(baselineAbility),
+      be: String(baselineEmotion)
+    });
+
+    return `${target}?${params.toString()}`;
   }
 
   window.continueToNextPart = function(){
@@ -1285,7 +1294,13 @@
         ep.addEventListener('click',()=>{if(e<9&&a>1){e++;a--;render();}});
         render();
         document.getElementById('allocation-submit').addEventListener('click',()=>{
-          baselineAbility=a; baselineEmotion=e;
+          baselineAbility=a;
+          baselineEmotion=e;
+
+          // 以 Master PID 为键保存基线分配，供第二部分作为 URL 丢失时的备用读取来源。
+          localStorage.setItem(BASELINE_ABILITY_KEY_PREFIX + currentSubjectId, String(a));
+          localStorage.setItem(BASELINE_EMOTION_KEY_PREFIX + currentSubjectId, String(e));
+
           jsPsych.finishTrial({
             Event_Type:'Baseline_Allocation',
             Baseline_Ability_Points:a,
