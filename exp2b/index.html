@@ -996,7 +996,7 @@
 
     const storageKey = `Exp2b_DP_Condition_${currentSubjectId}`;
     const cached = sessionStorage.getItem(storageKey);
-    if(cached === '0' || cached === '1' || cached === '2') return Number(cached);
+    if(cached === '0' || cached === '1') return Number(cached);
 
     const response = await fetch(`${DATAPIPE_BASE}/condition/`, {
       method:'POST',
@@ -1007,8 +1007,8 @@
     if(!response.ok || typeof result.condition !== 'number'){
       throw new Error(result.message || `DataPipe 条件分配失败（HTTP ${response.status}）`);
     }
-    if(![0,1,2].includes(result.condition)){
-      throw new Error(`收到未预期的条件编号：${result.condition}。请确认 DataPipe 条件数设置为 3。`);
+    if(![0,1].includes(result.condition)){
+      throw new Error(`收到未预期的条件编号：${result.condition}。请确认 DataPipe 条件数设置为 2。`);
     }
     sessionStorage.setItem(storageKey, String(result.condition));
     return result.condition;
@@ -1223,35 +1223,53 @@
   };
 
   /*
-     三套固定平衡序列：
-     - 每套24 trial；每张图片出现2次；每个Config出现4次（High 2 + Low 2）。
-     - 三套合计72个 Image × Config 配对，恰好覆盖 12图片 × 6配置，各1次，无遗漏、无重复。
-     - 同场景尽量拉开，同配置不连续；Block 1/2各12 trial。
+     两套完整固定平衡序列：
+     - 每套72 trial = 12张风险图片 × 6种配置，所有 Image × Config 配对各出现1次。
+     - 每套分为3个Block，每个Block 24 trial；Trial 24与48后休息。
+     - 每个Block：6种配置各4次；每张图片各2次；High 12次、Low 12次。
+     - 同配置不连续、同场景不连续；并保持足够的配置/场景/图片间隔。
+     - Sequence A/B内容完全相同，仅呈现顺序不同；2A与2B共用该顺序结构。
   */
   const SEQUENCE_TEMPLATES = {
     A:[
-      ['high1.webp','LHH'],['low3.webp','HLH'],['high5.webp','LHL'],['low2.webp','HHL'],
-      ['high4.webp','LLH'],['low6.webp','HLL'],['high3.webp','HLH'],['low5.webp','LHL'],
-      ['high2.webp','HHL'],['low4.webp','LLH'],['high6.webp','HLL'],['low1.webp','LHH'],
-      ['low2.webp','LHL'],['high5.webp','HHL'],['low6.webp','HLH'],['high1.webp','LLH'],
-      ['low3.webp','HLL'],['high2.webp','LHL'],['low4.webp','LHH'],['high6.webp','HLH'],
-      ['low1.webp','LLH'],['high3.webp','HLL'],['low5.webp','HHL'],['high4.webp','LHH']
+      ['high6.webp','HLL'],['low5.webp','LHL'],['high3.webp','HLH'],['low1.webp','LHH'],
+      ['high4.webp','LLH'],['low2.webp','HHL'],['high5.webp','HLL'],['low6.webp','LHH'],
+      ['high1.webp','HHL'],['low3.webp','LLH'],['high2.webp','HLH'],['low4.webp','LHL'],
+      ['high6.webp','LHH'],['low5.webp','HLL'],['high3.webp','LLH'],['low1.webp','HHL'],
+      ['high4.webp','LHL'],['low6.webp','HLL'],['high2.webp','HHL'],['low3.webp','HLH'],
+      ['high5.webp','LHL'],['low4.webp','LLH'],['high1.webp','LHH'],['low2.webp','HLH'],
+      ['high6.webp','HHL'],['low5.webp','LHH'],['high3.webp','HLL'],['low1.webp','LLH'],
+      ['high4.webp','LHH'],['low6.webp','HLH'],['high2.webp','LHL'],['low3.webp','HLL'],
+      ['high5.webp','HHL'],['low4.webp','LHH'],['high1.webp','LLH'],['low2.webp','LHL'],
+      ['high6.webp','HLH'],['low5.webp','HHL'],['high3.webp','LHL'],['low1.webp','HLH'],
+      ['high4.webp','HLL'],['low6.webp','HHL'],['high2.webp','LLH'],['low3.webp','LHL'],
+      ['high5.webp','LHH'],['low4.webp','HLL'],['high1.webp','HLH'],['low2.webp','LLH'],
+      ['high6.webp','LHL'],['low5.webp','HLH'],['high3.webp','HHL'],['low1.webp','HLL'],
+      ['high4.webp','HLH'],['low6.webp','LLH'],['high2.webp','LHH'],['low3.webp','HHL'],
+      ['high5.webp','LLH'],['low4.webp','HLH'],['high1.webp','LHL'],['low2.webp','HLL'],
+      ['high3.webp','LHH'],['low5.webp','LLH'],['high4.webp','HHL'],['low1.webp','LHL'],
+      ['high6.webp','LLH'],['low3.webp','LHH'],['high2.webp','HLL'],['low4.webp','HHL'],
+      ['high5.webp','HLH'],['low6.webp','LHL'],['high1.webp','HLL'],['low2.webp','LHH']
     ],
     B:[
-      ['high1.webp','HHL'],['low3.webp','LLH'],['high5.webp','HLL'],['low2.webp','HLH'],
-      ['high4.webp','LHL'],['low6.webp','LHH'],['high3.webp','LLH'],['low5.webp','HLL'],
-      ['high2.webp','HLH'],['low4.webp','LHL'],['high6.webp','LHH'],['low1.webp','HHL'],
-      ['low2.webp','HLL'],['high5.webp','HLH'],['low6.webp','LLH'],['high1.webp','LHL'],
-      ['low3.webp','LHH'],['high2.webp','HLL'],['low4.webp','HHL'],['high6.webp','LLH'],
-      ['low1.webp','LHL'],['high3.webp','LHH'],['low5.webp','HLH'],['high4.webp','HHL']
-    ],
-    C:[
-      ['high1.webp','HLH'],['low3.webp','LHL'],['high5.webp','LHH'],['low2.webp','LLH'],
-      ['high4.webp','HLL'],['low6.webp','HHL'],['high3.webp','LHL'],['low5.webp','LHH'],
-      ['high2.webp','LLH'],['low4.webp','HLL'],['high6.webp','HHL'],['low1.webp','HLH'],
-      ['low2.webp','LHH'],['high5.webp','LLH'],['low6.webp','LHL'],['high1.webp','HLL'],
-      ['low3.webp','HHL'],['high2.webp','LHH'],['low4.webp','HLH'],['high6.webp','LHL'],
-      ['low1.webp','HLL'],['high3.webp','HHL'],['low5.webp','LLH'],['high4.webp','HLH']
+      ['low2.webp','LHH'],['high6.webp','LHL'],['low4.webp','HLL'],['high1.webp','HLH'],
+      ['low3.webp','HHL'],['high5.webp','LLH'],['low6.webp','LHL'],['high2.webp','LHH'],
+      ['low1.webp','HLL'],['high4.webp','HLH'],['low5.webp','LHH'],['high3.webp','HHL'],
+      ['low2.webp','LLH'],['high1.webp','HLL'],['low4.webp','HLH'],['high6.webp','HHL'],
+      ['low3.webp','LHL'],['high5.webp','LHH'],['low1.webp','HLH'],['high2.webp','LLH'],
+      ['low6.webp','HHL'],['high4.webp','HLL'],['low5.webp','LLH'],['high3.webp','LHL'],
+      ['low2.webp','HLH'],['high1.webp','HHL'],['low4.webp','LHL'],['high6.webp','LHH'],
+      ['low3.webp','LLH'],['high5.webp','HLL'],['low1.webp','HHL'],['high2.webp','HLH'],
+      ['low6.webp','LHH'],['high4.webp','LHL'],['low5.webp','HLH'],['high3.webp','LLH'],
+      ['low2.webp','HLL'],['high1.webp','LHL'],['low4.webp','HHL'],['high6.webp','LLH'],
+      ['low3.webp','LHH'],['high5.webp','HLH'],['low1.webp','LHL'],['high2.webp','HLL'],
+      ['low6.webp','LLH'],['high4.webp','HHL'],['low5.webp','HLL'],['high3.webp','LHH'],
+      ['low2.webp','LHL'],['high1.webp','LLH'],['low4.webp','LHH'],['high6.webp','HLH'],
+      ['low3.webp','HLL'],['high5.webp','HHL'],['low1.webp','LLH'],['high2.webp','LHL'],
+      ['low6.webp','HLH'],['high4.webp','LHH'],['low5.webp','LHL'],['high3.webp','HLL'],
+      ['low2.webp','HHL'],['high1.webp','LHH'],['low4.webp','LLH'],['high6.webp','HLL'],
+      ['low3.webp','HLH'],['high5.webp','LHL'],['low1.webp','LHH'],['high2.webp','HHL'],
+      ['low6.webp','HLL'],['high4.webp','LLH'],['low5.webp','HHL'],['high3.webp','HLH']
     ]
   };
 
@@ -1268,41 +1286,101 @@
     const codes=Object.keys(CONFIGS);
     const images=[];
     ['high','low'].forEach(r=>{ for(let i=1;i<=6;i++) images.push(`${r}${i}.webp`); });
-    const globalPairs=new Set();
+    const expectedPairs=new Set();
+    images.forEach(img=>codes.forEach(cfg=>expectedPairs.add(`${img}|${cfg}`)));
 
-    ['A','B','C'].forEach(seq=>{
+    function checkMinGap(rows, selector, minGap, label, seq){
+      const last=new Map();
+      rows.forEach((row,i)=>{
+        const value=selector(row);
+        if(last.has(value)){
+          const gap=(i+1)-last.get(value);
+          if(gap<minGap) errors.push(`${seq} ${label} ${value} 间隔=${gap}，小于${minGap}`);
+        }
+        last.set(value,i+1);
+      });
+    }
+
+    ['A','B'].forEach(seq=>{
       const rows=SEQUENCE_TEMPLATES[seq];
-      if(rows.length!==24) errors.push(`Sequence ${seq} trial数=${rows.length}`);
+      if(rows.length!==72) errors.push(`Sequence ${seq} trial数=${rows.length}，应为72`);
+
+      const pairSet=new Set();
       const cfgCount=Object.fromEntries(codes.map(c=>[c,0]));
       const cfgRisk=Object.fromEntries(codes.map(c=>[c,{High:0,Low:0}]));
       const imgCount=Object.fromEntries(images.map(x=>[x,0]));
+
       rows.forEach(([img,cfg],i)=>{
         if(!CONFIGS[cfg]) errors.push(`${seq} Trial${i+1} 未知配置 ${cfg}`);
         if(!(img in imgCount)) errors.push(`${seq} Trial${i+1} 未知图片 ${img}`);
-        if(CONFIGS[cfg]) cfgCount[cfg]++;
-        if(img in imgCount) imgCount[img]++;
+
         const meta=imageMeta(img);
-        if(CONFIGS[cfg]) cfgRisk[cfg][meta.risk]++;
+        if(CONFIGS[cfg]){
+          cfgCount[cfg]++;
+          cfgRisk[cfg][meta.risk]++;
+        }
+        if(img in imgCount) imgCount[img]++;
+
         const pair=`${img}|${cfg}`;
-        if(globalPairs.has(pair)) errors.push(`跨Sequence重复配对 ${pair}`);
-        globalPairs.add(pair);
+        if(pairSet.has(pair)) errors.push(`${seq} 重复配对 ${pair}`);
+        pairSet.add(pair);
+
         if(i>0){
           const [prevImg,prevCfg]=rows[i-1];
-          if(imageMeta(prevImg).sceneId===meta.sceneId) errors.push(`${seq} Trial${i}/${i+1} 场景连续`);
+          const prevMeta=imageMeta(prevImg);
           if(prevCfg===cfg) errors.push(`${seq} Trial${i}/${i+1} 配置连续`);
+          if(prevMeta.sceneId===meta.sceneId) errors.push(`${seq} Trial${i}/${i+1} 场景连续`);
+          if(prevMeta.risk===meta.risk) errors.push(`${seq} Trial${i}/${i+1} 风险水平连续`);
         }
       });
+
       codes.forEach(c=>{
-        if(cfgCount[c]!==4) errors.push(`${seq} ${c} 总次数=${cfgCount[c]}`);
-        if(cfgRisk[c].High!==2 || cfgRisk[c].Low!==2) errors.push(`${seq} ${c} 风险次数 H${cfgRisk[c].High}/L${cfgRisk[c].Low}`);
+        if(cfgCount[c]!==12) errors.push(`${seq} ${c} 总次数=${cfgCount[c]}，应为12`);
+        if(cfgRisk[c].High!==6 || cfgRisk[c].Low!==6){
+          errors.push(`${seq} ${c} 风险次数 H${cfgRisk[c].High}/L${cfgRisk[c].Low}，应为H6/L6`);
+        }
       });
-      images.forEach(img=>{ if(imgCount[img]!==2) errors.push(`${seq} ${img} 次数=${imgCount[img]}`); });
+      images.forEach(img=>{
+        if(imgCount[img]!==6) errors.push(`${seq} ${img} 次数=${imgCount[img]}，应为6`);
+      });
+
+      if(pairSet.size!==72) errors.push(`${seq} Image×Config 唯一配对数=${pairSet.size}，应为72`);
+      expectedPairs.forEach(pair=>{
+        if(!pairSet.has(pair)) errors.push(`${seq} 缺少配对 ${pair}`);
+      });
+
+      for(let b=0;b<3;b++){
+        const blockRows=rows.slice(b*24,(b+1)*24);
+        const blockCfg=Object.fromEntries(codes.map(c=>[c,0]));
+        const blockImg=Object.fromEntries(images.map(x=>[x,0]));
+        const blockRisk={High:0,Low:0};
+        blockRows.forEach(([img,cfg])=>{
+          blockCfg[cfg]++;
+          blockImg[img]++;
+          blockRisk[imageMeta(img).risk]++;
+        });
+        codes.forEach(c=>{
+          if(blockCfg[c]!==4) errors.push(`${seq} Block${b+1} ${c} 次数=${blockCfg[c]}，应为4`);
+        });
+        images.forEach(img=>{
+          if(blockImg[img]!==2) errors.push(`${seq} Block${b+1} ${img} 次数=${blockImg[img]}，应为2`);
+        });
+        if(blockRisk.High!==12 || blockRisk.Low!==12){
+          errors.push(`${seq} Block${b+1} 风险次数 H${blockRisk.High}/L${blockRisk.Low}，应为H12/L12`);
+        }
+      }
+
+      checkMinGap(rows,row=>row[1],3,'配置',seq);
+      checkMinGap(rows,row=>imageMeta(row[0]).sceneId,5,'场景',seq);
+      checkMinGap(rows,row=>row[0],8,'图片',seq);
     });
 
-    if(globalPairs.size!==72) errors.push(`全局 Image×Config 唯一配对数=${globalPairs.size}，应为72`);
     if(errors.length) throw new Error('Sequence校验失败：'+errors.join('；'));
   }
   validateSequenceTemplates();
+
+  const TOTAL_FORMAL_TRIALS = 72;
+  const BLOCK_SIZE = 24;
 
   function buildFormalTrials(){
     const template=SEQUENCE_TEMPLATES[sequenceName];
@@ -1312,8 +1390,8 @@
       const config=CONFIGS[configCode];
       return {
         formalOrder:i+1,
-        block:i<12?1:2,
-        blockPosition:(i%12)+1,
+        block:Math.floor(i/BLOCK_SIZE)+1,
+        blockPosition:(i%BLOCK_SIZE)+1,
         image,
         sceneId:meta.sceneId,
         sceneName:scene.name,
@@ -1626,7 +1704,7 @@
       stimulus:`<div class="fullscreen-container">
         <div class="guide-box">
           <div class="guide-title">正式体验即将开始</div>
-          <div class="context-box">请继续想象您是一名乘客，正坐在一辆<span class="highlight">无人智驾车辆的后排</span>。您将通过<span class="highlight">前排平板屏幕</span>了解当前道路场景和智驾助手提供的信息。<br><br><span class="highlight">每个道路场景都是一次独立的乘车体验。</span><br>请只根据<span class="highlight">当前页面</span>呈现的道路场景、助手功能和功能说明进行判断，<span class="highlight">不要沿用上一场体验中的印象</span>。<br><br>正式体验分为两个部分，中间可以短暂休息。</div>
+          <div class="context-box">请继续想象您是一名乘客，正坐在一辆<span class="highlight">无人智驾车辆的后排</span>。您将通过<span class="highlight">前排平板屏幕</span>了解当前道路场景和智驾助手提供的信息。<br><br><span class="highlight">每个道路场景都是一次独立的乘车体验。</span><br>请只根据<span class="highlight">当前页面</span>呈现的道路场景、助手功能和功能说明进行判断，<span class="highlight">不要沿用上一场体验中的印象</span>。<br><br>正式体验分为三个部分，每部分之间可以短暂休息。</div>
           <div style="background:var(--panel-deep);border:1px solid var(--line);border-radius:9px;padding:15px 19px;line-height:1.75;">
             <div style="margin-bottom:7px;">① 查看当前<span class="highlight">道路场景</span>；</div>
             <div style="margin-bottom:7px;">② 查看当前智驾助手<span class="highlight">三项功能对应的能量格</span>；</div>
@@ -1647,19 +1725,19 @@
     };
   }
 
-  function createRestNode(){
+  function createRestNode(completedBlock){
     return {
       type:jsPsychHtmlKeyboardResponse,
       choices:'NO_KEYS',
       stimulus:`<div class="fullscreen-container">
         <div class="guide-box" style="text-align:center;max-width:760px;">
           <div class="guide-title">中途休息</div>
-          <p style="line-height:1.8;color:#ddd;">您已经完成了一半的正式体验，可以稍作休息。准备好后再继续。</p>
+          <p style="line-height:1.8;color:#ddd;">您已经完成第 <b>${completedBlock}</b> 部分正式体验，可以稍作休息。准备好后再继续。</p>
           <p style="line-height:1.8;color:#ffcf8a;font-weight:800;">后续体验的操作方式保持不变。请继续将每个道路场景视为一次独立的乘车体验，并根据当前页面的信息重新判断。</p>
           <button id="rest-continue" class="continue-btn">继续正式体验</button>
         </div>
       </div>`,
-      data:{Event_Type:'Rest_Break'},
+      data:{Event_Type:'Rest_Break',Completed_Block:completedBlock},
       on_load:()=>document.getElementById('rest-continue').addEventListener('click',()=>jsPsych.finishTrial())
     };
   }
@@ -1677,7 +1755,7 @@
       choices:'NO_KEYS',
       stimulus:`<div class="trial-shell">
         <div class="trial-header">
-          <span>${isFormal?`正式体验 ${trialData.formalOrder} / 24`:'练习体验'}</span>
+          <span>${isFormal?`正式体验 ${trialData.formalOrder} / ${TOTAL_FORMAL_TRIALS}`:'练习体验'}</span>
           <span>${isFormal?'请根据当前信息独立判断':'练习不计入正式结果'}</span>
         </div>
         <div class="scene-zone">${renderSceneImage(trialData.image)}</div>
@@ -1969,7 +2047,7 @@
       dataPipeCondition=0;
     }
 
-    sequenceName=['A','B','C'][dataPipeCondition];
+    sequenceName=['A','B'][dataPipeCondition];
     currentVersion=`Exp2b_Adult_DP${dataPipeCondition}_Seq${sequenceName}`;
 
     jsPsych.data.addProperties({
@@ -2010,7 +2088,8 @@
 
     for(let i=0;i<formalTrials.length;i++){
       timeline.push(createRatingTrialNode(formalTrials[i],true));
-      if(i===11) timeline.push(createRestNode());
+      if(i===23) timeline.push(createRestNode(1));
+      if(i===47) timeline.push(createRestNode(2));
     }
 
     jsPsych.run(timeline);
