@@ -980,7 +980,7 @@
   let pageHiddenTotalMs = 0;
   let pageHiddenStartedAtMs = null;
 
-  const sessionUUID = (window.crypto && crypto.randomUUID)
+  let sessionUUID = (window.crypto && crypto.randomUUID)
     ? crypto.randomUUID()
     : `fallback-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
@@ -1043,8 +1043,137 @@
     return /[",\r\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
   }
 
+  /* =========================================================
+     本地进度自动保存与恢复
+     ---------------------------------------------------------
+     每完成1个正式trial即保存到 localStorage。
+     若图片异常、页面刷新或重新载入，会沿用原Sequence，
+     并从第一个未完成trial继续。
+     ========================================================= */
+  const CHECKPOINT_KEY_PREFIX = 'exp2b_formal_checkpoint_v1_';
+
+  function checkpointKey(pid=currentSubjectId){
+    return CHECKPOINT_KEY_PREFIX + String(pid||'');
+  }
+
+  function normalizeCheckpointRows(rows){
+    const byOrder=new Map();
+    (Array.isArray(rows)?rows:[]).forEach(row=>{
+      const order=Number(row?.Formal_Trial_Order);
+      if(Number.isInteger(order) && order>=1 && order<=TOTAL_FORMAL_TRIALS){
+        byOrder.set(order,row);
+      }
+    });
+
+    const contiguous=[];
+    for(let expected=1;expected<=TOTAL_FORMAL_TRIALS;expected++){
+      const row=byOrder.get(expected);
+      if(!row) break;
+      contiguous.push(row);
+    }
+    return contiguous;
+  }
+
+  function loadExperimentCheckpoint(pid=currentSubjectId){
+    try{
+      const raw=localStorage.getItem(checkpointKey(pid));
+      if(!raw) return null;
+      const cp=JSON.parse(raw);
+      if(!cp || cp.subjectID!==pid || cp.studyID!==STUDY_ID) return null;
+      cp.rows=normalizeCheckpointRows(cp.rows);
+      return cp;
+    }catch(error){
+      console.warn('读取实验进度失败：',error);
+      return null;
+    }
+  }
+
+  function saveExperimentCheckpointRow(row){
+    try{
+      const existing=loadExperimentCheckpoint(currentSubjectId);
+      const rows=normalizeCheckpointRows([
+        ...((existing&&existing.rows)||[]),
+        row
+      ]);
+
+      localStorage.setItem(
+        checkpointKey(currentSubjectId),
+        JSON.stringify({
+          subjectID:currentSubjectId,
+          studyID:STUDY_ID,
+          studyPath,
+          condition:dataPipeCondition,
+          sequence:sequenceName,
+          sessionUUID,
+          baselineAbility,
+          baselineEmotion,
+          rows,
+          completedCount:rows.length,
+          updatedAt:Date.now()
+        })
+      );
+    }catch(error){
+      console.error('保存实验进度失败：',error);
+    }
+  }
+
+  function clearExperimentCheckpoint(){
+    try{
+      localStorage.removeItem(checkpointKey(currentSubjectId));
+    }catch(error){
+      console.warn('清理实验进度失败：',error);
+    }
+  }
+
+  function getPersistedFormalRows(){
+    const cp=loadExperimentCheckpoint(currentSubjectId);
+    return cp ? cp.rows : [];
+  }
+
+  function getMergedFormalRows(){
+    const merged=new Map();
+
+    getPersistedFormalRows().forEach(row=>{
+      merged.set(Number(row.Formal_Trial_Order),row);
+    });
+
+    jsPsych.data.get().filter({Event_Type:'Formal_Trial'}).values().forEach(row=>{
+      merged.set(Number(row.Formal_Trial_Order),row);
+    });
+
+    return [...merged.values()]
+      .filter(row=>Number.isInteger(Number(row.Formal_Trial_Order)))
+      .sort((a,b)=>Number(a.Formal_Trial_Order)-Number(b.Formal_Trial_Order));
+  }
+
+  window.downloadCurrentProgressCSV=function(){
+    const rows=getMergedFormalRows();
+    if(rows.length===0){
+      alert('当前还没有已完成的正式trial可保存。');
+      return;
+    }
+
+    const csv='\uFEFF'+buildCleanFormalCSV();
+    const safeSubject=String(currentSubjectId).replace(/[^a-zA-Z0-9_-]/g,'_');
+    const filename=`PARTIAL_${formatLocalTimestamp(new Date())}_${STUDY_ID}_Subject${safeSubject}_${rows.length}of${TOTAL_FORMAL_TRIALS}.csv`;
+
+    const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement('a');
+
+    link.href=url;
+    link.download=filename;
+    link.style.display='none';
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  };
+
   function buildCleanFormalCSV(){
-    const rows = jsPsych.data.get().filter({Event_Type:'Formal_Trial'}).values();
+    const rows = getMergedFormalRows();
     const sessionMetrics = {
       Experiment_Total_Time_ms: experimentTotalTimeMs(),
       Formal_Total_Time_ms: formalTotalTimeMs(),
@@ -1252,7 +1381,7 @@
     on_finish:async function(){
       finalizeExperimentTiming();
 
-      const formalRows=jsPsych.data.get().filter({Event_Type:'Formal_Trial'}).count();
+      const formalRows=getMergedFormalRows().length;
       if(formalRows!==72){
         console.error(`正式trial数量异常：${formalRows}，应为72`);
       }
@@ -1280,6 +1409,7 @@
 
       function renderSuccess(upload){
         clearPendingUpload();
+        clearExperimentCheckpoint();
         const statusText=upload.queued
           ? '数据已由 DataPipe 安全接收，并正在自动写入 Google Drive。'
           : '数据已成功提交至 DataPipe，并写入 Google Drive。';
@@ -1660,18 +1790,64 @@
   */
   const RESOURCE_GATE_FILES=['robot.webp','test.webp',...ALL_FORMAL_IMAGES];
   const RESOURCE_GATE_CONCURRENCY=4;
-  const resourceGateImageCache=[];
+  const PERSISTENT_ASSET_CACHE='study2-risk-assets-v2';
+
+  function canonicalAssetURL(rawFile){
+    return new URL(scenePreloader.normalize(rawFile),window.location.href).href;
+  }
+
+  async function getPersistentAssetResponse(rawFile){
+    if(!('caches' in window)) return null;
+    try{
+      const cache=await caches.open(PERSISTENT_ASSET_CACHE);
+      return await cache.match(canonicalAssetURL(rawFile));
+    }catch(error){
+      console.warn('读取持久化图片缓存失败：',rawFile,error);
+      return null;
+    }
+  }
+
+  async function fetchAndPersistAsset(rawFile){
+    const url=canonicalAssetURL(rawFile);
+
+    if(!('caches' in window)){
+      const response=await fetch(url,{cache:'force-cache'});
+      if(!response.ok) throw new Error(`资源请求失败 HTTP ${response.status}: ${rawFile}`);
+      return response;
+    }
+
+    const cache=await caches.open(PERSISTENT_ASSET_CACHE);
+    const cached=await cache.match(url);
+
+    if(cached){
+      return cached;
+    }
+
+    const response=await fetch(url,{cache:'reload'});
+    if(!response.ok){
+      throw new Error(`资源请求失败 HTTP ${response.status}: ${rawFile}`);
+    }
+
+    await cache.put(url,response.clone());
+    return response;
+  }
+
 
   function waitMs(ms){
     return new Promise(resolve=>setTimeout(resolve,ms));
   }
 
   async function loadAndDecodeResource(rawFile,maxAttempts=3){
-    const src=scenePreloader.normalize(rawFile);
     let lastError=null;
 
     for(let attempt=1;attempt<=maxAttempts;attempt++){
+      let objectURL=null;
+
       try{
+        const response=await fetchAndPersistAsset(rawFile);
+        const blob=await response.clone().blob();
+        objectURL=URL.createObjectURL(blob);
+
         const img=new Image();
         img.loading='eager';
         img.decoding='sync';
@@ -1681,7 +1857,7 @@
           const timer=setTimeout(()=>{
             if(settled) return;
             settled=true;
-            reject(new Error(`资源加载超时：${rawFile}`));
+            reject(new Error(`资源解码超时：${rawFile}`));
           },30000);
 
           img.onload=()=>{
@@ -1695,10 +1871,10 @@
             if(settled) return;
             settled=true;
             clearTimeout(timer);
-            reject(new Error(`资源加载失败：${rawFile}`));
+            reject(new Error(`资源解码失败：${rawFile}`));
           };
 
-          img.src=src;
+          img.src=objectURL;
 
           if(img.complete && img.naturalWidth>0){
             settled=true;
@@ -1711,7 +1887,6 @@
           try{
             await img.decode();
           }catch(error){
-            // 某些移动端浏览器即使图片已经可正常显示，也可能拒绝 decode() Promise。
             if(!(img.complete && img.naturalWidth>0)) throw error;
           }
         }
@@ -1720,13 +1895,22 @@
           throw new Error(`资源未能完成解码：${rawFile}`);
         }
 
-        resourceGateImageCache.push(img);
-        scenePreloader.markLoaded(src);
-        return src;
+        scenePreloader.markLoaded(rawFile);
+        return canonicalAssetURL(rawFile);
       }catch(error){
         lastError=error;
         console.warn(`[resource gate] ${rawFile} attempt ${attempt}/${maxAttempts} failed`,error);
+
+        if('caches' in window){
+          try{
+            const cache=await caches.open(PERSISTENT_ASSET_CACHE);
+            await cache.delete(canonicalAssetURL(rawFile));
+          }catch(_e){}
+        }
+
         if(attempt<maxAttempts) await waitMs(1000*attempt);
+      }finally{
+        if(objectURL) URL.revokeObjectURL(objectURL);
       }
     }
 
@@ -1822,6 +2006,54 @@
   /* =========================================================
      7. timeline节点
      ========================================================= */
+  function createResumeNode(completedCount){
+    const nextTrial=Math.min(completedCount+1,TOTAL_FORMAL_TRIALS);
+    return {
+      type:jsPsychHtmlKeyboardResponse,
+      choices:'NO_KEYS',
+      stimulus:`<div class="fullscreen-container">
+        <div class="guide-box" style="text-align:center;max-width:780px;">
+          <div class="guide-title">已恢复实验进度</div>
+          <div class="context-box" style="text-align:center;">
+            已完成 <span class="highlight">${completedCount}</span> / ${TOTAL_FORMAL_TRIALS} 个正式trial，
+            将从第 <span class="highlight">${nextTrial}</span> 个trial继续。
+          </div>
+          <p style="color:#bbb;line-height:1.7;">
+            系统会先重新检查实验图片。已经完成的数据不会重复计入。
+          </p>
+          <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:8px;">
+            <button id="resume-download-progress" class="continue-btn" style="background:#ffb74d;color:#111;">
+              下载已保存进度CSV
+            </button>
+            <button id="resume-start" class="continue-btn">
+              恢复并继续
+            </button>
+          </div>
+          <p style="color:#8f9aa5;font-size:13px;line-height:1.6;margin-top:14px;">
+            下载CSV不会清除本机进度，也不会影响后续继续实验。
+          </p>
+        </div>
+      </div>`,
+      data:{Event_Type:'Resume_Instruction',Resume_From_Trial:nextTrial},
+      on_load:()=>{
+        const downloadBtn=document.getElementById('resume-download-progress');
+        const resumeBtn=document.getElementById('resume-start');
+
+        if(downloadBtn){
+          downloadBtn.addEventListener('click',()=>{
+            window.downloadCurrentProgressCSV();
+          });
+        }
+
+        if(resumeBtn){
+          resumeBtn.addEventListener('click',()=>{
+            jsPsych.finishTrial();
+          });
+        }
+      }
+    };
+  }
+
   function createWelcomeNode(){
     return {
       type:jsPsychHtmlKeyboardResponse,
@@ -1956,7 +2188,7 @@
         <div class="guide-box" style="text-align:center;max-width:760px;">
           <div class="guide-title">正在准备实验资源</div>
           <p id="resource-gate-status" style="color:#ddd;line-height:1.8;">
-            正在加载并检查道路场景图片，请稍候……
+            正在将实验图片保存到本设备并检查可用性，请稍候……
           </p>
           <div style="width:min(520px,82vw);height:14px;background:#1b1c22;border:1px solid #555;border-radius:8px;overflow:hidden;margin:18px auto;">
             <div id="resource-gate-bar" style="height:100%;width:0%;background:var(--green);transition:width .2s ease;"></div>
@@ -1980,7 +2212,7 @@
           running=true;
           retry.style.display='none';
           status.style.color='#ddd';
-          status.innerText='正在加载并检查道路场景图片，请稍候……';
+          status.innerText='正在将实验图片保存到本设备并检查可用性，请稍候……';
 
           try{
             const result=await preloadAllExperimentResources((done,total,file)=>{
@@ -2147,6 +2379,16 @@
           Array.from(shell.children).forEach(x=>resizeObserver.observe(x));
         }
 
+        let imageRetryCount=0;
+        const MAX_TRIAL_IMAGE_RETRIES=3;
+
+        function setImageHintHTML(html,color='var(--muted)'){
+          if(!sceneHint) return;
+          sceneHint.style.display='flex';
+          sceneHint.style.color=color;
+          sceneHint.innerHTML=html;
+        }
+
         function enableRatingsAfterImage(){
           if(sceneReady) return;
           sceneReady=true;
@@ -2157,32 +2399,145 @@
           options.forEach(btn=>btn.disabled=false);
           requestAnimationFrame(enableAdaptiveLayoutIfNeeded);
         }
-        function showImageError(error){
+
+        let currentObjectURL=null;
+
+        async function attachActualImage(forceReload=false){
+          if(!sceneImg || sceneReady) return;
+
+          sceneImg.onload=null;
+          sceneImg.onerror=null;
+
+          if(currentObjectURL){
+            URL.revokeObjectURL(currentObjectURL);
+            currentObjectURL=null;
+          }
+
+          sceneImg.onload=()=>{
+            if(currentObjectURL){
+              setTimeout(()=>{
+                try{ URL.revokeObjectURL(currentObjectURL); }catch(_e){}
+                currentObjectURL=null;
+              },500);
+            }
+            enableRatingsAfterImage();
+          };
+
+          sceneImg.onerror=(error)=>handleImageError(error);
+
+          try{
+            if(!forceReload){
+              const cached=await getPersistentAssetResponse(imagePath);
+
+              if(cached){
+                const blob=await cached.blob();
+                currentObjectURL=URL.createObjectURL(blob);
+                sceneImg.src=currentObjectURL;
+
+                if(sceneImg.complete && sceneImg.naturalWidth>0){
+                  enableRatingsAfterImage();
+                }
+                return;
+              }
+            }
+
+            const response=await fetch(
+              forceReload
+                ? `${canonicalAssetURL(imagePath)}?retry=${Date.now()}`
+                : canonicalAssetURL(imagePath),
+              {cache:forceReload?'reload':'force-cache'}
+            );
+
+            if(!response.ok){
+              throw new Error(`HTTP ${response.status}`);
+            }
+
+            if('caches' in window){
+              try{
+                const cache=await caches.open(PERSISTENT_ASSET_CACHE);
+                await cache.put(canonicalAssetURL(imagePath),response.clone());
+              }catch(error){
+                console.warn('当前场景写入持久缓存失败：',error);
+              }
+            }
+
+            const blob=await response.blob();
+            currentObjectURL=URL.createObjectURL(blob);
+            sceneImg.src=currentObjectURL;
+
+            if(sceneImg.complete && sceneImg.naturalWidth>0){
+              enableRatingsAfterImage();
+            }
+          }catch(error){
+            handleImageError(error);
+          }
+        }
+
+        function handleImageError(error){
           sceneReady=false;
           options.forEach(btn=>btn.disabled=true);
           confirm.disabled=true;
-          if(sceneHint){
-            sceneHint.style.display='flex';
-            sceneHint.style.color='var(--warning)';
-            sceneHint.innerText='当前驾驶场景暂未加载成功，正在重试…';
+          imageRetryCount++;
+
+          console.error('trial image load error',imagePath,'retry',imageRetryCount,error);
+
+          if(imageRetryCount<=MAX_TRIAL_IMAGE_RETRIES){
+            setImageHintHTML(
+              `当前驾驶场景暂未加载成功，正在重新加载（${imageRetryCount}/${MAX_TRIAL_IMAGE_RETRIES}）……`,
+              'var(--warning)'
+            );
+            setTimeout(()=>attachActualImage(true),1200);
+            return;
           }
-          console.error('trial image load error',imagePath,error);
-          setTimeout(requestCurrentImage,1800);
+
+          setImageHintHTML(
+            `<div style="max-width:560px;line-height:1.7;">
+              <div style="font-weight:800;margin-bottom:10px;">当前驾驶场景暂未加载成功。</div>
+              <div style="font-size:13px;color:#bbb;margin-bottom:12px;">
+                已完成的正式trial已自动保存在本机浏览器中，不会因为重新加载页面而丢失。
+              </div>
+              <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+                <button id="scene-retry-current" class="continue-btn" style="min-width:150px;min-height:42px;font-size:15px;">
+                  重试当前场景
+                </button>
+                <button id="scene-reload-page" class="continue-btn" style="min-width:190px;min-height:42px;font-size:15px;background:var(--blue);color:#111;">
+                  保存进度并重新载入
+                </button>
+                <button id="scene-download-progress" class="continue-btn" style="min-width:190px;min-height:42px;font-size:15px;background:#ffb74d;color:#111;">
+                  下载当前进度CSV
+                </button>
+              </div>
+            </div>`,
+            'var(--warning)'
+          );
+
+          const retryBtn=document.getElementById('scene-retry-current');
+          const reloadBtn=document.getElementById('scene-reload-page');
+          const downloadBtn=document.getElementById('scene-download-progress');
+
+          if(retryBtn){
+            retryBtn.addEventListener('click',()=>{
+              imageRetryCount=0;
+              setImageHintHTML('正在重新加载当前驾驶场景，请稍候……');
+              attachActualImage(true);
+            },{once:true});
+          }
+
+          if(reloadBtn){
+            reloadBtn.addEventListener('click',()=>location.reload(),{once:true});
+          }
+
+          if(downloadBtn){
+            downloadBtn.addEventListener('click',()=>window.downloadCurrentProgressCSV());
+          }
         }
-        function attachActualImage(){
-          if(!sceneImg || sceneReady) return;
-          sceneImg.addEventListener('load',enableRatingsAfterImage,{once:true});
-          sceneImg.addEventListener('error',showImageError,{once:true});
-          sceneImg.src=imagePath;
-          if(sceneImg.complete && sceneImg.naturalWidth>0) enableRatingsAfterImage();
-        }
-        function requestCurrentImage(){
-          if(!sceneImg || sceneReady) return;
-          if(scenePreloader.isLoaded(imagePath)){ attachActualImage(); return; }
-          if(sceneHint){ sceneHint.style.display='flex'; sceneHint.innerText='正在准备当前驾驶场景，请稍候…'; }
-          scenePreloader.whenLoaded(imagePath,attachActualImage,attachActualImage);
-        }
-        requestCurrentImage();
+
+        /*
+          iPad长实验中可能回收图片内存，因此每个trial都直接让<img>读取原始URL；
+          正常时命中浏览器缓存，失败时使用cache-busting参数强制重新请求。
+        */
+        setImageHintHTML('正在准备当前驾驶场景，请稍候…');
+        attachActualImage(false);
 
         function setSelected(score){
           options.forEach(btn=>btn.classList.toggle('selected',Number(btn.dataset.score)===score));
@@ -2227,7 +2582,7 @@
           const imageBase=String(trialData.image||'').replace(/\.[^.]+$/,'');
           const imageNumber=(String(trialData.image||'').match(/(\d+)/)||[])[1]||'';
 
-          jsPsych.finishTrial({
+          const completedTrialData={
             Event_Type:isFormal?'Formal_Trial':'Practice_Trial',
             Subject_ID:currentSubjectId,
             Study_ID:STUDY_ID,
@@ -2267,7 +2622,9 @@
             Browser_Context:getBrowserContext(),
             User_Agent:navigator.userAgent||'',
             Image_Format:IMAGE_FORMAT
-          });
+          };
+          if(isFormal){ saveExperimentCheckpointRow(completedTrialData); }
+          jsPsych.finishTrial(completedTrialData);
         });
       }
     };
@@ -2371,20 +2728,35 @@
     startButton.disabled=true;
     startButton.innerText='正在连接实验服务器…';
 
-    try{
-      dataPipeCondition=await getDataPipeCondition();
-    }catch(error){
-      console.error(error);
-      startButton.disabled=false;
-      startButton.innerText=originalButtonText;
-      if(DATAPIPE_REQUIRED){
-        alert('暂时无法连接实验服务器或获取实验条件，请检查网络后重试。\n\n'+(error.message||error));
-        return;
+    const existingCheckpoint=loadExperimentCheckpoint(currentSubjectId);
+
+    if(
+      existingCheckpoint &&
+      [0,1].includes(Number(existingCheckpoint.condition)) &&
+      ['A','B'].includes(existingCheckpoint.sequence)
+    ){
+      dataPipeCondition=Number(existingCheckpoint.condition);
+      sequenceName=existingCheckpoint.sequence;
+      if(existingCheckpoint.sessionUUID){
+        sessionUUID=String(existingCheckpoint.sessionUUID);
       }
-      dataPipeCondition=0;
+    }else{
+      try{
+        dataPipeCondition=await getDataPipeCondition();
+      }catch(error){
+        console.error(error);
+        startButton.disabled=false;
+        startButton.innerText=originalButtonText;
+        if(DATAPIPE_REQUIRED){
+          alert('暂时无法连接实验服务器或获取实验条件，请检查网络后重试。\n\n'+(error.message||error));
+          return;
+        }
+        dataPipeCondition=0;
+      }
+
+      sequenceName=['A','B'][dataPipeCondition];
     }
 
-    sequenceName=['A','B'][dataPipeCondition];
     currentVersion=`Exp2b_Adult_DP${dataPipeCondition}_Seq${sequenceName}`;
 
     jsPsych.data.addProperties({
@@ -2415,16 +2787,27 @@
       manipulationText:practiceConfig.text
     };
 
-    const timeline=[];
-    timeline.push(createWelcomeNode());
-    timeline.push(createConceptLearningNode());
-    timeline.push(createEnergyLearningNode());
-    timeline.push(createResourceGateNode());
-    timeline.push(createPracticeInstructionNode());
-    timeline.push(createRatingTrialNode(practiceTrial,false));
-    timeline.push(createFormalInstructionNode());
+    const checkpoint=loadExperimentCheckpoint(currentSubjectId);
+    const completedCount=checkpoint ? checkpoint.rows.length : 0;
+    const resumeIndex=Math.min(completedCount,TOTAL_FORMAL_TRIALS);
 
-    for(let i=0;i<formalTrials.length;i++){
+    const timeline=[];
+
+    if(resumeIndex>0 && resumeIndex<TOTAL_FORMAL_TRIALS){
+      timeline.push(createResumeNode(resumeIndex));
+      timeline.push(createResourceGateNode());
+      if(formalStartedAtMs===null) formalStartedAtMs=Date.now();
+    }else if(resumeIndex===0){
+      timeline.push(createWelcomeNode());
+      timeline.push(createConceptLearningNode());
+      timeline.push(createEnergyLearningNode());
+      timeline.push(createResourceGateNode());
+      timeline.push(createPracticeInstructionNode());
+      timeline.push(createRatingTrialNode(practiceTrial,false));
+      timeline.push(createFormalInstructionNode());
+    }
+
+    for(let i=resumeIndex;i<formalTrials.length;i++){
       timeline.push(createRatingTrialNode(formalTrials[i],true));
       if(i===23) timeline.push(createRestNode(1));
       if(i===47) timeline.push(createRestNode(2));
