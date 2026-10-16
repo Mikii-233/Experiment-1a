@@ -636,7 +636,7 @@
 
 <script>
   /* =========================================================
-     实验1a 成人版串联正式版 v3（Master PID + Study_Path + Baseline Transfer + DataPipe -> Google Drive）
+     实验1a 成人版串联正式版 v4（第二部分资源后台预取 + Master PID + Baseline Transfer + DataPipe）
      ---------------------------------------------------------
      核心框架：jsPsych
      数据传输：DataPipe -> Google Drive
@@ -1165,6 +1165,186 @@
     await preloadOneCritical(ROBOT_IMAGE);
     await preloadOneCritical(PRACTICE_IMAGE);
   })();
+
+  /* =========================================================
+     6B. 第二部分（2A / 2B）公共资源后台预取
+     ---------------------------------------------------------
+     目标：
+     - 不抢占1A自身关键资源与正式场景的加载；
+     - 等1A的 robot / test / scene1~scene6 全部准备完成后，
+       再以低并发方式在后台预取2A/2B共用的14个资源；
+     - 2A/2B自己的“14/14资源门控”仍然保留，作为最终核验。
+     ---------------------------------------------------------
+     路径说明：
+     1A位于仓库根目录，因此这里请求 risk_img/xxx.webp；
+     2A/2B位于子目录，使用 ../risk_img/xxx.webp。
+     两者最终解析到同一个URL，可复用浏览器HTTP缓存。
+     ========================================================= */
+  const SECOND_PART_ASSET_BASE = 'risk_img/';
+  const SECOND_PART_PREFETCH_CONCURRENCY = 2;
+
+  const SECOND_PART_PREFETCH_FILES = [
+    `${SECOND_PART_ASSET_BASE}robot.webp`,
+    `${SECOND_PART_ASSET_BASE}test.webp`,
+    ...Array.from({length:6},(_,i)=>`${SECOND_PART_ASSET_BASE}high${i+1}.webp`),
+    ...Array.from({length:6},(_,i)=>`${SECOND_PART_ASSET_BASE}low${i+1}.webp`)
+  ];
+
+  let secondPartPrefetchStarted = false;
+  let secondPartPrefetchFinished = false;
+  let secondPartPrefetchCompleted = 0;
+  const secondPartPrefetchFailed = [];
+
+  function waitMs(ms){
+    return new Promise(resolve=>setTimeout(resolve,ms));
+  }
+
+  function prefetchOneSecondPartAsset(file,maxAttempts=3){
+    return new Promise(resolve=>{
+      let attempt=0;
+
+      function run(){
+        attempt++;
+
+        const img=new Image();
+        img.loading='eager';
+        img.decoding='async';
+
+        let settled=false;
+        const timeout=setTimeout(()=>{
+          if(settled) return;
+          settled=true;
+
+          if(attempt<maxAttempts){
+            setTimeout(run,800*attempt);
+          }else{
+            resolve({file,ok:false,error:'timeout'});
+          }
+        },30000);
+
+        img.onload=()=>{
+          if(settled) return;
+          settled=true;
+          clearTimeout(timeout);
+          resolve({file,ok:true});
+        };
+
+        img.onerror=()=>{
+          if(settled) return;
+          settled=true;
+          clearTimeout(timeout);
+
+          if(attempt<maxAttempts){
+            setTimeout(run,800*attempt);
+          }else{
+            resolve({file,ok:false,error:'load_error'});
+          }
+        };
+
+        /*
+          不添加cache-busting参数：
+          必须让1A预取URL与2A/2B实际图片URL保持一致，
+          才能直接复用浏览器缓存。
+        */
+        img.src=file;
+
+        if(img.complete && img.naturalWidth>0){
+          settled=true;
+          clearTimeout(timeout);
+          resolve({file,ok:true});
+        }
+      }
+
+      run();
+    });
+  }
+
+  async function prefetchSecondPartAssets(){
+    if(secondPartPrefetchStarted) return;
+    secondPartPrefetchStarted=true;
+
+    let nextIndex=0;
+
+    async function worker(){
+      while(true){
+        const index=nextIndex++;
+        if(index>=SECOND_PART_PREFETCH_FILES.length) return;
+
+        const file=SECOND_PART_PREFETCH_FILES[index];
+        const result=await prefetchOneSecondPartAsset(file,3);
+
+        if(result.ok){
+          secondPartPrefetchCompleted++;
+        }else{
+          secondPartPrefetchFailed.push(file);
+        }
+
+        console.info(
+          `[second-part prefetch] ${secondPartPrefetchCompleted}/${SECOND_PART_PREFETCH_FILES.length}`,
+          file,
+          result.ok ? 'ok' : 'failed'
+        );
+      }
+    }
+
+    const workers=Array.from(
+      {length:Math.min(SECOND_PART_PREFETCH_CONCURRENCY,SECOND_PART_PREFETCH_FILES.length)},
+      ()=>worker()
+    );
+
+    await Promise.all(workers);
+    secondPartPrefetchFinished=true;
+
+    console.info(
+      '[second-part prefetch] finished',
+      {
+        completed:secondPartPrefetchCompleted,
+        total:SECOND_PART_PREFETCH_FILES.length,
+        failed:[...secondPartPrefetchFailed]
+      }
+    );
+  }
+
+  function startSecondPartPrefetchAfterFirstPartReady(firstPartFormalImages){
+    const firstPartRequired=[
+      ROBOT_IMAGE,
+      PRACTICE_IMAGE,
+      ...firstPartFormalImages
+    ].map(scenePreloader.normalize);
+
+    let timer=null;
+
+    function firstPartReady(){
+      return firstPartRequired.every(file=>scenePreloader.isLoaded(file));
+    }
+
+    function tryStart(){
+      if(!firstPartReady()) return false;
+
+      if(timer){
+        clearInterval(timer);
+        timer=null;
+      }
+
+      /*
+        再短暂让出网络/主线程后才开始第二部分资源预取，
+        避免刚完成1A关键资源时马上增加并发压力。
+      */
+      setTimeout(()=>{
+        prefetchSecondPartAssets().catch(error=>{
+          console.warn('[second-part prefetch] unexpected error',error);
+        });
+      },600);
+
+      return true;
+    }
+
+    if(tryStart()) return;
+
+    timer=setInterval(()=>{
+      tryStart();
+    },500);
+  }
 
   /* =========================================================
      7. UI辅助函数
@@ -1801,8 +1981,10 @@
     const uniqueFormalImages=[...new Set(formalTrials.map(t=>t.image))];
 
     // 严格资源优先级：robot.webp -> test.webp -> scene1~scene6.webp。
+    // 只有1A自身全部资源准备好以后，才以低并发后台预取2A/2B公共资源。
     criticalPreloadPromise.finally(()=>{
       scenePreloader.enqueue(uniqueFormalImages,false);
+      startSecondPartPrefetchAfterFirstPartReady(uniqueFormalImages);
     });
 
     const timeline=[];
