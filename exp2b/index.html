@@ -1061,25 +1061,122 @@
     return lines.join('\r\n');
   }
 
-  async function uploadFinalDataToDataPipe(csvString){
-    if(!dataPipeConfigured()) throw new Error('DataPipe experiment ID 尚未配置。');
-    const filename = buildUniqueDataFilename();
-    const response = await fetch(`${DATAPIPE_BASE}/data/`, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        experimentID:DATAPIPE_EXPERIMENT_ID,
-        filename,
-        data:csvString
-      })
-    });
-    const result = await response.json().catch(()=>({}));
-    // 201 = 已写入；202 = DataPipe 已安全接收并排队写入。两者均视为成功。
-    if(response.status !== 201 && response.status !== 202){
-      const code = result.error ? ` [${result.error}]` : '';
-      throw new Error(`${result.message || `DataPipe 数据上传失败（HTTP ${response.status}）`}${code}`);
+  const UPLOAD_MAX_ATTEMPTS = 3;
+  const UPLOAD_TIMEOUT_MS = 30000;
+  let lastFinalCsvString = '';
+  let lastFinalUploadFilename = '';
+
+  function sleep(ms){
+    return new Promise(resolve=>setTimeout(resolve,ms));
+  }
+
+  async function fetchWithTimeout(url,options,timeoutMs){
+    if(typeof AbortController === 'undefined'){
+      return fetch(url,options);
     }
-    return {filename,result,httpStatus:response.status,queued:response.status===202};
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),timeoutMs);
+    try{
+      return await fetch(url,{...options,signal:controller.signal});
+    }finally{
+      clearTimeout(timer);
+    }
+  }
+
+  function pendingUploadStorageKey(){
+    return `Exp2b_PendingUpload_${currentSubjectId}`;
+  }
+
+  function savePendingUpload(csvString,filename){
+    try{
+      localStorage.setItem(
+        pendingUploadStorageKey(),
+        JSON.stringify({
+          experimentID:DATAPIPE_EXPERIMENT_ID,
+          subjectID:currentSubjectId,
+          sessionUUID,
+          sequence:sequenceName,
+          filename,
+          csv:csvString,
+          savedAt:Date.now()
+        })
+      );
+    }catch(error){
+      console.warn('无法写入本地待上传备份：',error);
+    }
+  }
+
+  function clearPendingUpload(){
+    try{
+      localStorage.removeItem(pendingUploadStorageKey());
+    }catch(error){
+      console.warn('无法清理本地待上传备份：',error);
+    }
+  }
+
+  async function uploadFinalDataToDataPipe(csvString,fixedFilename,onAttempt){
+    if(!dataPipeConfigured()) throw new Error('DataPipe experiment ID 尚未配置。');
+
+    const filename=fixedFilename || buildUniqueDataFilename();
+    const requestBody=JSON.stringify({
+      experimentID:DATAPIPE_EXPERIMENT_ID,
+      filename,
+      data:csvString
+    });
+    const bodyBytes=new Blob([requestBody]).size;
+    let lastError=null;
+
+    for(let attempt=1;attempt<=UPLOAD_MAX_ATTEMPTS;attempt++){
+      if(typeof onAttempt==='function'){
+        try{ onAttempt(attempt,UPLOAD_MAX_ATTEMPTS); }catch(_e){}
+      }
+
+      try{
+        const fetchOptions={
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:requestBody,
+          cache:'no-store'
+        };
+
+        // 小体积请求允许在移动端页面状态变化时继续发送；
+        // 体积较大时不启用 keepalive，避免部分浏览器限制。
+        if(bodyBytes<60000) fetchOptions.keepalive=true;
+
+        const response=await fetchWithTimeout(
+          `${DATAPIPE_BASE}/data/`,
+          fetchOptions,
+          UPLOAD_TIMEOUT_MS
+        );
+
+        const result=await response.json().catch(()=>({}));
+
+        if(response.status===201 || response.status===202){
+          return {
+            filename,
+            result,
+            httpStatus:response.status,
+            queued:response.status===202,
+            attempts:attempt
+          };
+        }
+
+        const code=result.error ? ` [${result.error}]` : '';
+        throw new Error(
+          `${result.message || `DataPipe 数据上传失败（HTTP ${response.status}）`}${code}`
+        );
+      }catch(error){
+        lastError=error;
+        console.warn(`[DataPipe upload] attempt ${attempt}/${UPLOAD_MAX_ATTEMPTS} failed`,error);
+        if(attempt<UPLOAD_MAX_ATTEMPTS){
+          await sleep(1500*attempt);
+        }
+      }
+    }
+
+    throw new Error(
+      `连续 ${UPLOAD_MAX_ATTEMPTS} 次上传均未成功：${String(lastError?.message || lastError || '未知错误')}`
+    );
   }
 
   function prepareLocalBackup(csvString){
@@ -1154,44 +1251,108 @@
     display_element:'jspsych-target',
     on_finish:async function(){
       finalizeExperimentTiming();
+
+      const formalRows=jsPsych.data.get().filter({Event_Type:'Formal_Trial'}).count();
+      if(formalRows!==72){
+        console.error(`正式trial数量异常：${formalRows}，应为72`);
+      }
+
       const rawCleanCsv=buildCleanFormalCSV();
       const csvString='\uFEFF'+rawCleanCsv;
       prepareLocalBackup(csvString);
 
-      document.getElementById('jspsych-target').innerHTML=`
-        <div class="fullscreen-container">
-          <div class="guide-box" style="text-align:center;max-width:780px;">
-            <div class="guide-title">体验已完成，正在提交数据……</div>
-            <p style="color:#bbb;line-height:1.8;">请暂时不要关闭、刷新或返回此页面。数据保存成功后会自动显示确认信息。</p>
-          </div>
-        </div>`;
+      lastFinalCsvString=csvString;
+      lastFinalUploadFilename=buildUniqueDataFilename();
+      savePendingUpload(lastFinalCsvString,lastFinalUploadFilename);
 
-      try{
-        const upload=await uploadFinalDataToDataPipe(csvString);
+      function renderSubmitting(attempt=1,maxAttempts=UPLOAD_MAX_ATTEMPTS){
+        document.getElementById('jspsych-target').innerHTML=`
+          <div class="fullscreen-container">
+            <div class="guide-box" style="text-align:center;max-width:780px;">
+              <div class="guide-title">体验已完成，正在提交数据……</div>
+              <p style="color:#bbb;line-height:1.8;">
+                请暂时不要关闭、刷新、返回或切换此页面。<br>
+                正在进行第 ${attempt} / ${maxAttempts} 次上传尝试。
+              </p>
+            </div>
+          </div>`;
+      }
+
+      function renderSuccess(upload){
+        clearPendingUpload();
         const statusText=upload.queued
           ? '数据已由 DataPipe 安全接收，并正在自动写入 Google Drive。'
-          : '数据已成功保存至 Google Drive。';
+          : '数据已成功提交至 DataPipe，并写入 Google Drive。';
+
         document.getElementById('jspsych-target').innerHTML=`
           <div class="fullscreen-container">
             <div class="guide-box" style="text-align:center;max-width:780px;">
               <div class="guide-title" style="color:var(--green);">✓ 数据提交成功</div>
-              <p style="color:#ddd;line-height:1.8;">${statusText}<br>本次体验已全部结束，感谢您的参与！现在可以安全关闭此页面。</p>
-              <p style="color:#777;font-size:13px;">数据文件：${upload.filename}</p>
+              <p style="color:#ddd;line-height:1.8;">
+                ${statusText}<br>
+                本次体验已全部结束，感谢您的参与！现在可以安全关闭此页面。
+              </p>
+              <p style="color:#777;font-size:13px;">
+                数据文件：${upload.filename}<br>
+                上传尝试次数：${upload.attempts}
+              </p>
             </div>
           </div>`;
-      }catch(error){
-        console.error('DataPipe upload failed:',error);
+      }
+
+      function renderFailure(error){
         document.getElementById('jspsych-target').innerHTML=`
           <div class="fullscreen-container">
             <div class="guide-box" style="text-align:center;max-width:820px;">
               <div class="guide-title" style="color:#ff7043;">数据暂未成功上传</div>
-              <p style="color:#ddd;line-height:1.8;">请不要直接关闭页面。您可以先检查网络；如研究者允许，也可点击下方按钮保存本地备份文件并联系研究者。</p>
-              <p style="color:var(--warning);font-size:14px;word-break:break-all;">错误信息：${String(error.message||error)}</p>
-              <button onclick="downloadCSV()" class="continue-btn" style="background:var(--blue);color:#111;">保存本地备份 CSV</button>
-              <p style="color:#777;font-size:13px;margin-top:16px;">会话编号：${sessionUUID}</p>
+              <p style="color:#ddd;line-height:1.8;">
+                请不要关闭、刷新或返回页面。程序已经在本机浏览器中保留待上传数据，
+                您可以检查网络后点击“重新上传数据”。
+              </p>
+              <p style="color:var(--warning);font-size:14px;word-break:break-all;">
+                错误信息：${String(error.message||error)}
+              </p>
+              <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+                <button id="retry-upload-btn" class="continue-btn">重新上传数据</button>
+                <button onclick="downloadCSV()" class="continue-btn" style="background:var(--blue);color:#111;">
+                  保存本地备份 CSV
+                </button>
+              </div>
+              <p style="color:#777;font-size:13px;margin-top:16px;">
+                会话编号：${sessionUUID}<br>
+                待上传文件：${lastFinalUploadFilename}
+              </p>
             </div>
           </div>`;
+
+        const retryBtn=document.getElementById('retry-upload-btn');
+        if(retryBtn){
+          retryBtn.addEventListener('click',()=>window.retryFinalUpload());
+        }
       }
+
+      async function performUpload(){
+        try{
+          const upload=await uploadFinalDataToDataPipe(
+            lastFinalCsvString,
+            lastFinalUploadFilename,
+            (attempt,maxAttempts)=>renderSubmitting(attempt,maxAttempts)
+          );
+          renderSuccess(upload);
+          return true;
+        }catch(error){
+          console.error('DataPipe upload failed:',error);
+          renderFailure(error);
+          return false;
+        }
+      }
+
+      window.retryFinalUpload=async function(){
+        return performUpload();
+      };
+
+      renderSubmitting(1,UPLOAD_MAX_ATTEMPTS);
+      await performUpload();
     }
   });
 
@@ -1403,7 +1564,7 @@
   }
 
   /* =========================================================
-     5. 图片后台滚动预加载（3并发）
+     5. 图片后台预热 + 正式资源门控
      ========================================================= */
   const SCENE_PRELOAD_CONCURRENCY=3;
   const scenePreloader=(()=>{
@@ -1490,6 +1651,114 @@
   const ALL_FORMAL_IMAGES=[];
   ['high','low'].forEach(r=>{ for(let i=1;i<=6;i++) ALL_FORMAL_IMAGES.push(`${r}${i}.webp`); });
   scenePreloader.start(['robot.webp','test.webp',...ALL_FORMAL_IMAGES]);
+
+  /*
+     正式资源门控：
+     - 页面打开后继续后台预热；
+     - 进入练习前再次确认 robot、练习图和12张正式风险图均已加载并可显示；
+     - 全部资源准备完成后才继续，避免平板/手机在trial中出现“图片加载中”。
+  */
+  const RESOURCE_GATE_FILES=['robot.webp','test.webp',...ALL_FORMAL_IMAGES];
+  const RESOURCE_GATE_CONCURRENCY=4;
+  const resourceGateImageCache=[];
+
+  function waitMs(ms){
+    return new Promise(resolve=>setTimeout(resolve,ms));
+  }
+
+  async function loadAndDecodeResource(rawFile,maxAttempts=3){
+    const src=scenePreloader.normalize(rawFile);
+    let lastError=null;
+
+    for(let attempt=1;attempt<=maxAttempts;attempt++){
+      try{
+        const img=new Image();
+        img.loading='eager';
+        img.decoding='sync';
+
+        await new Promise((resolve,reject)=>{
+          let settled=false;
+          const timer=setTimeout(()=>{
+            if(settled) return;
+            settled=true;
+            reject(new Error(`资源加载超时：${rawFile}`));
+          },30000);
+
+          img.onload=()=>{
+            if(settled) return;
+            settled=true;
+            clearTimeout(timer);
+            resolve();
+          };
+
+          img.onerror=()=>{
+            if(settled) return;
+            settled=true;
+            clearTimeout(timer);
+            reject(new Error(`资源加载失败：${rawFile}`));
+          };
+
+          img.src=src;
+
+          if(img.complete && img.naturalWidth>0){
+            settled=true;
+            clearTimeout(timer);
+            resolve();
+          }
+        });
+
+        if(typeof img.decode==='function'){
+          try{
+            await img.decode();
+          }catch(error){
+            // 某些移动端浏览器即使图片已经可正常显示，也可能拒绝 decode() Promise。
+            if(!(img.complete && img.naturalWidth>0)) throw error;
+          }
+        }
+
+        if(!(img.complete && img.naturalWidth>0)){
+          throw new Error(`资源未能完成解码：${rawFile}`);
+        }
+
+        resourceGateImageCache.push(img);
+        scenePreloader.markLoaded(src);
+        return src;
+      }catch(error){
+        lastError=error;
+        console.warn(`[resource gate] ${rawFile} attempt ${attempt}/${maxAttempts} failed`,error);
+        if(attempt<maxAttempts) await waitMs(1000*attempt);
+      }
+    }
+
+    throw lastError || new Error(`资源准备失败：${rawFile}`);
+  }
+
+  async function preloadAllExperimentResources(onProgress){
+    const files=[...new Set(RESOURCE_GATE_FILES)];
+    let completed=0;
+    let nextIndex=0;
+
+    async function worker(){
+      while(true){
+        const index=nextIndex++;
+        if(index>=files.length) return;
+        const file=files[index];
+        await loadAndDecodeResource(file,3);
+        completed++;
+        if(typeof onProgress==='function'){
+          onProgress(completed,files.length,file);
+        }
+      }
+    }
+
+    const workerCount=Math.min(RESOURCE_GATE_CONCURRENCY,files.length);
+    await Promise.all(
+      Array.from({length:workerCount},()=>worker())
+    );
+
+    return {completed,total:files.length};
+  }
+
 
   /* =========================================================
      6. UI辅助函数
@@ -1675,6 +1944,74 @@
           energyQuizAttempts=attempts;
           jsPsych.finishTrial({Energy_Quiz_Attempts:attempts,Energy_Quiz_Correct:1});
         });
+      }
+    };
+  }
+
+  function createResourceGateNode(){
+    return {
+      type:jsPsychHtmlKeyboardResponse,
+      choices:'NO_KEYS',
+      stimulus:`<div class="fullscreen-container">
+        <div class="guide-box" style="text-align:center;max-width:760px;">
+          <div class="guide-title">正在准备实验资源</div>
+          <p id="resource-gate-status" style="color:#ddd;line-height:1.8;">
+            正在加载并检查道路场景图片，请稍候……
+          </p>
+          <div style="width:min(520px,82vw);height:14px;background:#1b1c22;border:1px solid #555;border-radius:8px;overflow:hidden;margin:18px auto;">
+            <div id="resource-gate-bar" style="height:100%;width:0%;background:var(--green);transition:width .2s ease;"></div>
+          </div>
+          <p id="resource-gate-detail" style="color:#8f9aa5;font-size:13px;">0 / 14</p>
+          <button id="resource-gate-retry" class="continue-btn" style="display:none;margin-top:14px;">
+            重新加载资源
+          </button>
+        </div>
+      </div>`,
+      data:{Event_Type:'Resource_Gate'},
+      on_load:function(){
+        const status=document.getElementById('resource-gate-status');
+        const detail=document.getElementById('resource-gate-detail');
+        const bar=document.getElementById('resource-gate-bar');
+        const retry=document.getElementById('resource-gate-retry');
+        let running=false;
+
+        async function runGate(){
+          if(running) return;
+          running=true;
+          retry.style.display='none';
+          status.style.color='#ddd';
+          status.innerText='正在加载并检查道路场景图片，请稍候……';
+
+          try{
+            const result=await preloadAllExperimentResources((done,total,file)=>{
+              const pct=Math.round(done/total*100);
+              bar.style.width=`${pct}%`;
+              detail.innerText=`${done} / ${total}　${String(file).replace(/^.*\//,'')}`;
+            });
+
+            bar.style.width='100%';
+            detail.innerText=`${result.completed} / ${result.total}`;
+            status.style.color='var(--green)';
+            status.innerText='✓ 所有实验图片已准备完成，即将进入练习。';
+
+            setTimeout(()=>{
+              jsPsych.finishTrial({
+                Resource_Gate_Completed:1,
+                Resource_Count:result.total
+              });
+            },350);
+          }catch(error){
+            console.error('资源门控失败：',error);
+            status.style.color='#ff8a65';
+            status.innerText='部分实验图片暂未加载成功，请检查网络后重新尝试。';
+            detail.innerText=String(error.message||error);
+            retry.style.display='inline-block';
+            running=false;
+          }
+        }
+
+        retry.addEventListener('click',runGate);
+        runGate();
       }
     };
   }
@@ -2082,6 +2419,7 @@
     timeline.push(createWelcomeNode());
     timeline.push(createConceptLearningNode());
     timeline.push(createEnergyLearningNode());
+    timeline.push(createResourceGateNode());
     timeline.push(createPracticeInstructionNode());
     timeline.push(createRatingTrialNode(practiceTrial,false));
     timeline.push(createFormalInstructionNode());
